@@ -14,9 +14,10 @@
 
 #include "config.h"
 
-#ifdef __USING_WASM_EXCEPTIONS__
 
 #include "unwind.h"
+
+#ifdef __WASM_EXCEPTIONS__
 #include <threads.h>
 
 _Unwind_Reason_Code __gxx_personality_wasm0(int version, _Unwind_Action actions,
@@ -37,13 +38,13 @@ struct _Unwind_LandingPadContext {
 // function
 thread_local struct _Unwind_LandingPadContext __wasm_lpad_context;
 
-/// Calls to this function is in landing pads in compiler-generated user code.
+/// Calls to this function are in landing pads in compiler-generated user code.
 /// In other EH schemes, stack unwinding is done by libunwind library, which
-/// calls the personality function for each each frame it lands. On the other
-/// hand, WebAssembly stack unwinding process is performed by a VM, and the
-/// personality function cannot be called from there. So the compiler inserts
-/// a call to this function in landing pads in the user code, which in turn
-/// calls the personality function.
+/// calls the personality function for each frame it lands. On the other hand,
+/// WebAssembly stack unwinding process is performed by a VM, and the
+/// personality function cannot be called from there. So the compiler inserts a
+/// call to this function in landing pads in the user code, which in turn calls
+/// the personality function.
 _Unwind_Reason_Code _Unwind_CallPersonality(void *exception_ptr) {
   struct _Unwind_Exception *exception_object =
       (struct _Unwind_Exception *)exception_ptr;
@@ -92,7 +93,7 @@ _LIBUNWIND_EXPORT void _Unwind_SetGR(struct _Unwind_Context *context, int index,
 
 /// Called by personality handler to get instruction pointer.
 _LIBUNWIND_EXPORT uintptr_t _Unwind_GetIP(struct _Unwind_Context *context) {
-  // The result will be used as an 1-based index after decrementing 1, so we
+  // The result will be used as a 1-based index after decrementing 1, so we
   // increment 2 here
   uintptr_t result =
       ((struct _Unwind_LandingPadContext *)context)->lpad_index + 2;
@@ -102,8 +103,7 @@ _LIBUNWIND_EXPORT uintptr_t _Unwind_GetIP(struct _Unwind_Context *context) {
 }
 
 /// Not used in Wasm.
-_LIBUNWIND_EXPORT void _Unwind_SetIP(struct _Unwind_Context *context __attribute__((unused)),
-                                     uintptr_t value __attribute__((unused))) {}
+_LIBUNWIND_EXPORT void _Unwind_SetIP(struct _Unwind_Context *, uintptr_t) {}
 
 /// Called by personality handler to get LSDA for current frame.
 _LIBUNWIND_EXPORT uintptr_t
@@ -115,9 +115,16 @@ _Unwind_GetLanguageSpecificData(struct _Unwind_Context *context) {
 }
 
 /// Not used in Wasm.
-_LIBUNWIND_EXPORT uintptr_t
-_Unwind_GetRegionStart(struct _Unwind_Context *context __attribute__((unused))) {
+_LIBUNWIND_EXPORT uintptr_t _Unwind_GetRegionStart(struct _Unwind_Context *) {
   return 0;
 }
 
-#endif // defined(__USING_WASM_EXCEPTIONS__)
+#elif defined(__EMSCRIPTEN__)
+/// Called by __cxa_throw.
+/// Define it here to prevent linker errors if we're buildingig Wasm modules
+/// without exception support.
+_LIBUNWIND_EXPORT _Unwind_Reason_Code
+_Unwind_RaiseException(_Unwind_Exception *exception_object __attribute__((unused))) {
+  abort();
+}
+#endif // defined(__WASM_EXCEPTIONS__)

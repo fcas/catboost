@@ -22,7 +22,7 @@ See all common variables in [Variables used in formulas](loss-functions-variable
 
 ### {{ error-function__PairLogit }} {#PairLogit}
 
-$\displaystyle\frac{-\sum\limits_{p, n \in Pairs} w_{pn} \left(log(\displaystyle\frac{1}{1 + e^{- (a_{p} - a_{n})}})\right)}{\sum\limits_{p, n \in Pairs} w_{pn}}$
+$\displaystyle\frac{-\sum\limits_{p, n \in Pairs} w_{pn} \left(\log(\displaystyle\frac{1}{1 + e^{- (a_{p} - a_{n})}})\right)}{\sum\limits_{p, n \in Pairs} w_{pn}}$
 
 {% include [objectives-and-metrics-the-weights-of-objects-not-used-to-calculate-metrics](../_includes/work_src/reusage-loss-functions/the-weights-of-objects-not-used-to-calculate-metrics.md) %}
 
@@ -42,7 +42,7 @@ _Default:_ {{ loss-functions__params__max_pairs_default }}
 
 ### {{ error-function__PairLogitPairwise }} {#PairLogitPairwise}
 
-$\displaystyle\frac{-\sum\limits_{p, n \in Pairs} w_{pn} \left(log(\displaystyle\frac{1}{1 + e^{- (a_{p} - a_{n})}})\right)}{\sum\limits_{p, n \in Pairs} w_{pn}}$
+$\displaystyle\frac{-\sum\limits_{p, n \in Pairs} w_{pn} \left(\log(\displaystyle\frac{1}{1 + e^{- (a_{p} - a_{n})}})\right)}{\sum\limits_{p, n \in Pairs} w_{pn}}$
 
 This metric may give more accurate results on large datasets compared to {{ error-function__PairLogit }} but it is calculated significantly slower.
 
@@ -440,7 +440,7 @@ _Possible values_: `{{ error-function__ndcg__denominator__LogPosition }}`, `{{ e
 
 Metric denominator type.
 
-_Default_: {{ error-function__dcg__denominator__default }}.
+_Default_: {{ error-function__ndcg__denominator__default }}.
 _Possible values_: `{{ error-function__ndcg__denominator__LogPosition }}`, `{{ error-function__ndcg__denominator__Position }}`.
 
 {% endcut %}
@@ -498,6 +498,18 @@ The input scale coefficient.
 _Default:_ 1
 
 {% endcut %}
+
+### {{ error-function__GroupQuantile }} {#GroupQuantile}
+
+$\displaystyle\frac{\sum\limits_{Group \in Groups} \sum\limits_{i \in Group}w_{i}  (\alpha - I(t_{i} \leq a_{i} - g_{Group\ mean}  ))(t_{i} - a_{i} -  g_{Group\ mean}) } {\sum\limits_{Group \in Groups} \sum_{i\in Group} w_{i}}$,
+where $g_{Group\ mean}=\displaystyle\frac{\sum\limits_{j \in Group} w_{j} (t_{j} - a_{j})}{\sum\limits_{j \in Group} w_{j}}$.
+
+**{{ optimization }}** See [more](#usage-information).
+
+**{{ title__loss-functions__text__user-defined-params }}**
+
+{% include [use-weights__desc__with_default_value](../_includes/work_src/reusage-loss-functions/use-weights__desc__with__default__value.md) %}
+
 
 ### {{ error-function__PFound }} {#PFound}
 
@@ -603,7 +615,7 @@ _Default_: {{ loss-functions__obligatory-text }}.
 1. The metric is calculated as follows:
 
     $PrecisionAt(top, border) = \frac{\sum\limits_{i=1}^{top} Relevant_{i}}{top} { , where}$
-    - $Relevant_{i} = \begin{cases} 1 { , } & t_{i} > {border} \\ 0 { , } & {in other cases} \end{cases}$
+    - $Relevant_{i} = \begin{cases} 1 { , } & t_{i} > {border} \\ 0 { , } & \text{in other cases} \end{cases}$
 
 **{{ no-optimization }}**  See [more](#usage-information).
 
@@ -621,8 +633,8 @@ _Default_: {{ loss-functions__obligatory-text }}.
 1. The objects are sorted in descending order of predicted relevancies ($a_{i}$)
 
 1. The metric is calculated as follows:
-    $RecalAt(top, border) = \frac{\sum\limits_{i=1}^{top} Relevant_{i}}{\sum\limits_{i=1}^{N} Relevant_{i}}$
-    - $Relevant_{i} = \begin{cases} 1 { , } & t_{i} > {border} \\ 0 { , } & {in other cases} \end{cases}$
+    $RecallAt(top, border) = \frac{\sum\limits_{i=1}^{top} Relevant_{i}}{\sum\limits_{i=1}^{N} Relevant_{i}}$
+    - $Relevant_{i} = \begin{cases} 1 { , } & t_{i} > {border} \\ 0 { , } & \text{in other cases} \end{cases}$
 
 **{{ no-optimization }}**  See [more](#usage-information).
 
@@ -722,28 +734,29 @@ _Examples_: `AUC:type=Ranking;use_weights=False`.
 ## {{ title__loss-functions__text__optimization }} {#usage-information}
 
 
-| Name                                                        | Optimization            | GPU Support             |
---------------------------------------------------------------|-------------------------|-------------------------|
-[{{ error-function__PairLogit }}](#PairLogit)                 |     +                   |     +                   |
-[{{ error-function__PairLogitPairwise }}](#PairLogitPairwise) |     +                   |     +                   |
-[{{ error-function__PairAccuracy }}](#PairAccuracy)           |     -                   |     -                   |
-[{{ error-function__YetiRank }}](#YetiRank)                   |     +                   |     + (but only Classic mode) |
-[{{ error-function__YetiRankPairwise }}](#YetiRankPairwise)   |     +                   |     + (but only Classic mode) |
-[{{ error-function__LambdaMart }}](#LambdaMart)               |     +                   |     -                   |
-[{{ error-function__StochasticFilter }}](#StochasticFilter)   |     +                   |     -                   |
-[{{ error-function__StochasticRank }}](#StochasticRank)       |     +                   |     -                   |
-[{{ error-function__QueryCrossEntropy }}](#QueryCrossEntropy) |     +                   |     +                   |
-[{{ error-function__QueryRMSE }}](#QueryRMSE)                 |     +                   |     +                   |
-[{{ error-function__QuerySoftMax }}](#QuerySoftMax)           |     +                   |     +                   |
-[{{ error-function__PFound }}](#PFound)                       |     -                   |     -                   |
-[{{ error-function__ndcg }}](#ndcg)                           |     -                   |     -                   |
-[{{ error-function__dcg }}](#dcg)                             |     -                   |     -                   |
-[{{ error-function__FilteredDCG }}](#PFilteredDCG)            |     -                   |     -                   |
-[{{ error-function__QueryAverage }}](#QueryAverage)           |     -                   |     -                   |
-[{{ error-function__PrecisionAtK }}](#PrecisionAtK)           |     -                   |     -                   |
-[{{ error-function__RecallAtK }}](#RecallAtK)                 |     -                   |     -                   |
-[{{ error-function__mapk }}](#mapk)                           |     -                   |     -                   |
-[{{ error-function__err }}](#err)                             |     -                   |     -                   |
-[{{ error-function__mrr }}](#mrr)                             |     -                   |     -                   |
-[{{ error-function--AUC }}](#AUC)                             |     -                   |     -                   |
-[{{ error-function--QueryAUC }}](#QueryAUC)                   |     -                   |     -                   |
+| Name                                                        | Optimization            | GPU Support               |
+--------------------------------------------------------------|-------------------------|---------------------------|
+[{{ error-function__PairLogit }}](#PairLogit)                 |     +                   | +                         |
+[{{ error-function__PairLogitPairwise }}](#PairLogitPairwise) |     +                   | +                         |
+[{{ error-function__PairAccuracy }}](#PairAccuracy)           |     -                   | -                         |
+[{{ error-function__YetiRank }}](#YetiRank)                   |     +                   | + (but only Classic mode) |
+[{{ error-function__YetiRankPairwise }}](#YetiRankPairwise)   |     +                   | + (but only Classic mode) |
+[{{ error-function__LambdaMart }}](#LambdaMart)               |     +                   | -                         |
+[{{ error-function__StochasticFilter }}](#StochasticFilter)   |     +                   | -                         |
+[{{ error-function__StochasticRank }}](#StochasticRank)       |     +                   | -                         |
+[{{ error-function__QueryCrossEntropy }}](#QueryCrossEntropy) |     +                   | +                         |
+[{{ error-function__QueryRMSE }}](#QueryRMSE)                 |     +                   | +                         |
+[{{ error-function__QuerySoftMax }}](#QuerySoftMax)           |     +                   | +                         |
+[{{ error-function__GroupQuantile }}](#GroupQuantile)         |     +                   | -                         |
+[{{ error-function__PFound }}](#PFound)                       |     -                   | -                         |
+[{{ error-function__ndcg }}](#ndcg)                           |     -                   | -                         |
+[{{ error-function__dcg }}](#dcg)                             |     -                   | -                         |
+[{{ error-function__FilteredDCG }}](#PFilteredDCG)            |     -                   | -                         |
+[{{ error-function__QueryAverage }}](#QueryAverage)           |     -                   | -                         |
+[{{ error-function__PrecisionAtK }}](#PrecisionAtK)           |     -                   | -                         |
+[{{ error-function__RecallAtK }}](#RecallAtK)                 |     -                   | -                         |
+[{{ error-function__mapk }}](#mapk)                           |     -                   | -                         |
+[{{ error-function__err }}](#err)                             |     -                   | -                         |
+[{{ error-function__mrr }}](#mrr)                             |     -                   | -                         |
+[{{ error-function--AUC }}](#AUC)                             |     -                   | -                         |
+[{{ error-function--QueryAUC }}](#QueryAUC)                   |     -                   | -                         |

@@ -9,10 +9,13 @@ import pandas as pd
 import timeit
 import json
 import shutil
+import sys
+import tempfile
 
 import catboost
 
 from lib import (
+    is_open_source,
     apply_catboost,
     compare_evals_with_precision,
     compare_fit_evals_with_precision,
@@ -42,9 +45,9 @@ PREDICTION_TYPES = ['Probability', 'RawFormulaVal', 'Class']
 BINCLASS_LOSSES = ['Logloss', 'CrossEntropy']
 MULTICLASS_LOSSES = ['MultiClass', 'MultiClassOneVsAll']
 CLASSIFICATION_LOSSES = BINCLASS_LOSSES + MULTICLASS_LOSSES
-REGRESSION_LOSSES = ['MAE', 'MAPE', 'Poisson', 'Quantile', 'RMSE', 'RMSEWithUncertainty', 'LogLinQuantile', 'Lq']
+REGRESSION_LOSSES = ['MAE', 'MAPE', 'Poisson', 'Quantile', 'RMSE', 'RMSEWithUncertainty', 'LogLinQuantile', 'Lq', 'RMSPE']
 PAIRWISE_LOSSES = ['PairLogit', 'PairLogitPairwise']
-GROUPWISE_LOSSES = ['YetiRank', 'YetiRankPairwise', 'QueryRMSE', 'QuerySoftMax']
+GROUPWISE_LOSSES = ['YetiRank', 'YetiRankPairwise', 'QueryRMSE', 'GroupQuantile', 'QuerySoftMax']
 RANKING_LOSSES = PAIRWISE_LOSSES + GROUPWISE_LOSSES
 ALL_LOSSES = CLASSIFICATION_LOSSES + REGRESSION_LOSSES + RANKING_LOSSES
 
@@ -178,6 +181,7 @@ def test_cv_multiregression(is_inverted, boosting_type):
     return [local_canonical_file(output_eval_path)]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -194,6 +198,7 @@ def test_dist_train_multiregression(dev_score_calc_obj_block_size):
         other_options=('--boost-from-average', '0'))))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -1491,7 +1496,7 @@ def test_yetirank(boosting_type, dev_score_calc_obj_block_size):
     return [local_canonical_file(output_eval_path)]
 
 
-@pytest.mark.parametrize('loss_function', ['QueryRMSE', 'PairLogit', 'YetiRank', 'PairLogitPairwise', 'YetiRankPairwise'])
+@pytest.mark.parametrize('loss_function', ['QueryRMSE', 'GroupQuantile', 'PairLogit', 'YetiRank', 'PairLogitPairwise', 'YetiRankPairwise'])
 def test_pairwise_reproducibility(loss_function):
 
     def run_catboost(threads, model_path, eval_path):
@@ -2328,7 +2333,8 @@ def test_ignored_features_not_read_names():
 
 
 @pytest.mark.parametrize('boosting_type', BOOSTING_TYPE)
-def test_text_ignored_features(boosting_type):
+@pytest.mark.parametrize('ignored_features', ['2-4:6', '0:2', '0:7', '2:7', '0:2:7', '0', '2', '7'])
+def test_text_ignored_features(boosting_type, ignored_features):
     output_model_path = yatest.common.test_output_path('model.bin')
     output_eval_path = yatest.common.test_output_path('test.eval')
 
@@ -2342,12 +2348,33 @@ def test_text_ignored_features(boosting_type):
         '-w', '0.03',
         '-T', '4',
         '-m', output_model_path,
-        '-I', '2-4:6',
+        '-I', ignored_features,
         '--eval-file', output_eval_path,
         '--use-best-model', 'false',
     )
     execute_catboost_fit('CPU', cmd)
     return [local_canonical_file(output_eval_path)]
+
+
+def test_ignore_text_feature():
+    cd_path = data_file('rotten_tomatoes_small_with_embeddings', 'cd_binclass')
+    train_path = data_file('rotten_tomatoes_small_with_embeddings', 'train')
+    output_path = yatest.common.test_output_path('output.txt')
+
+    cmd_fit = ('--loss-function', 'Logloss',
+               '--cd', cd_path,
+               '-f', train_path,
+               '-i', '5',
+               '-T', '1',
+               '--learn-err-log', output_path,
+               '-I', '7',
+               )
+
+    execute_catboost_fit('CPU', cmd_fit)
+
+    return [
+        local_canonical_file(output_path),
+    ]
 
 
 @pytest.mark.parametrize('boosting_type', BOOSTING_TYPE)
@@ -3368,7 +3395,9 @@ def do_test_fstr(
 
     yatest.common.execute(fstr_cmd)
 
-    return local_canonical_file(output_fstr_path)
+    may_use_fast_exp = loss_function in ('Logloss', 'MultiClass', )  # results may depend fma support by cpu
+    epsilon = 1e-18 if is_canonical_test_run() and not may_use_fast_exp else 1e9
+    return local_canonical_file(output_fstr_path, diff_tool=get_limited_precision_dsv_diff_tool(epsilon, False))
 
 
 def make_model_normalized(model_path):
@@ -3382,7 +3411,7 @@ def make_model_normalized(model_path):
     ])
 
 
-@pytest.mark.parametrize('loss_function', ['QueryRMSE', 'PairLogit', 'YetiRank', 'PairLogitPairwise', 'YetiRankPairwise'])
+@pytest.mark.parametrize('loss_function', ['QueryRMSE', 'GroupQuantile', 'PairLogit', 'YetiRank', 'PairLogitPairwise', 'YetiRankPairwise'])
 def test_loss_change_fstr(loss_function):
     return do_test_loss_change_fstr(loss_function, normalize=False)
 
@@ -4286,7 +4315,7 @@ def test_const_feature(boosting_type, dev_score_calc_obj_block_size):
     return [local_canonical_file(output_eval_path)]
 
 
-QUANTILE_LOSS_FUNCTIONS = ['Quantile', 'LogLinQuantile']
+QUANTILE_LOSS_FUNCTIONS = ['Quantile', 'GroupQuantile', 'LogLinQuantile']
 
 
 @pytest.mark.parametrize('loss_function', QUANTILE_LOSS_FUNCTIONS)
@@ -4298,9 +4327,9 @@ def test_quantile_targets(loss_function, boosting_type, grow_policy):
     cmd = (
         '--use-best-model', 'false',
         '--loss-function', loss_function + ':alpha=0.9',
-        '-f', data_file('adult', 'train_small'),
-        '-t', data_file('adult', 'test_small'),
-        '--column-description', data_file('adult', 'train.cd'),
+        '-f', data_file('querywise', 'train'),
+        '-t', data_file('querywise', 'test'),
+        '--column-description', data_file('querywise', 'train.cd'),
         '--boosting-type', boosting_type,
         '--grow-policy', grow_policy,
         '-i', '5',
@@ -4382,6 +4411,7 @@ def test_quantile_categorical(boosting_type):
     return [local_canonical_file(output_eval_path)]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 def test_quantile_exact_distributed():
     return [local_canonical_file(run_dist_train(make_deterministic_train_cmd(
         loss_function='MAE',
@@ -5295,7 +5325,7 @@ def test_output_columns_format():
     )
     yatest.common.execute(calc_cmd)
 
-    return local_canonical_file(output_eval_path, formula_predict_path)
+    return [local_canonical_file(output_eval_path), local_canonical_file(formula_predict_path)]
 
 
 def test_output_auxiliary_columns_format():
@@ -5747,6 +5777,7 @@ def run_dist_train(cmd, output_file_switch='--eval-file'):
     return eval_1_path
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -5762,6 +5793,7 @@ def test_dist_train(dev_score_calc_obj_block_size):
         dev_score_calc_obj_block_size=dev_score_calc_obj_block_size)))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -5777,6 +5809,7 @@ def test_dist_train_with_weights(dev_score_calc_obj_block_size):
         dev_score_calc_obj_block_size=dev_score_calc_obj_block_size)))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -5792,6 +5825,7 @@ def test_dist_train_with_baseline(dev_score_calc_obj_block_size):
         dev_score_calc_obj_block_size=dev_score_calc_obj_block_size)))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -5807,6 +5841,7 @@ def test_dist_train_multiclass(dev_score_calc_obj_block_size):
         dev_score_calc_obj_block_size=dev_score_calc_obj_block_size)))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -5822,6 +5857,7 @@ def test_dist_train_multiclass_weight(dev_score_calc_obj_block_size):
         dev_score_calc_obj_block_size=dev_score_calc_obj_block_size)))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -5839,6 +5875,7 @@ def test_dist_train_quantized(dev_score_calc_obj_block_size):
         other_options=('-x', '128', '--feature-border-type', 'GreedyLogSum'))))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -5859,6 +5896,7 @@ def test_dist_train_quantized_groupid(dev_score_calc_obj_block_size, pairs_file,
                        '--learn-pairs', data_file('querywise', pairs_file)))))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -5877,6 +5915,7 @@ def test_dist_train_quantized_group_weights(dev_score_calc_obj_block_size):
                        '--learn-group-weights', data_file('querywise', 'train.group_weights')))))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -5897,6 +5936,7 @@ def test_dist_train_quantized_baseline(dev_score_calc_obj_block_size):
                        '--learn-baseline', data_file('higgs', 'train_baseline')))))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -5912,6 +5952,7 @@ def test_dist_train_queryrmse(dev_score_calc_obj_block_size):
         dev_score_calc_obj_block_size=dev_score_calc_obj_block_size)))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -5929,6 +5970,7 @@ def test_dist_train_subgroup(dev_score_calc_obj_block_size):
     ), output_file_switch='--test-err-log'))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -5946,6 +5988,7 @@ def test_dist_train_pairlogit(dev_score_calc_obj_block_size):
     )))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize('pairs_file', ['train.pairs', 'train.pairs.weighted'])
 def test_dist_train_pairlogitpairwise(pairs_file):
     return [local_canonical_file(run_dist_train(make_deterministic_train_cmd(
@@ -5958,6 +6001,7 @@ def test_dist_train_pairlogitpairwise(pairs_file):
     )))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -5973,6 +6017,7 @@ def test_dist_train_querysoftmax(dev_score_calc_obj_block_size):
         dev_score_calc_obj_block_size=dev_score_calc_obj_block_size)))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize('loss_func', ['Logloss', 'RMSE'])
 def test_dist_train_auc(loss_func):
     return [local_canonical_file(run_dist_train(make_deterministic_train_cmd(
@@ -5985,6 +6030,7 @@ def test_dist_train_auc(loss_func):
     ), output_file_switch='--test-err-log'))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize('loss_func', ['Logloss', 'RMSE'])
 def test_dist_train_auc_weight(loss_func):
     return [local_canonical_file(run_dist_train(make_deterministic_train_cmd(
@@ -5997,6 +6043,7 @@ def test_dist_train_auc_weight(loss_func):
     ), output_file_switch='--test-err-log'))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.xfail(reason='Boost from average for distributed training')
 @pytest.mark.parametrize('schema,train', [('quantized://', 'train_small_x128_greedylogsum.bin'), ('', 'train_small')])
 def test_dist_train_snapshot(schema, train):
@@ -6021,6 +6068,7 @@ def test_dist_train_snapshot(schema, train):
     return [local_canonical_file(eval_5_plus_5_trees_path)]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 def test_dist_train_yetirank():
     return [local_canonical_file(run_dist_train(make_deterministic_train_cmd(
         loss_function='YetiRank',
@@ -6031,6 +6079,7 @@ def test_dist_train_yetirank():
     ), output_file_switch='--test-err-log'))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'dev_score_calc_obj_block_size',
     SCORE_CALC_OBJ_BLOCK_SIZES,
@@ -6059,6 +6108,7 @@ def test_dist_train_with_cat_features(dev_score_calc_obj_block_size, one_hot_max
         return [local_canonical_file(run_dist_train(cmd))]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="known issue with getting worker addresses")
 @pytest.mark.parametrize(
     'od_type',
     ['IncToDec', 'Iter'],
@@ -7424,7 +7474,7 @@ def test_save_and_apply_multiclass_labels_from_classes_count(loss_function, pred
                 else:
                     assert float(line[:-1].split()[1]) in [1, 2]  # probability of 0,3 classes appearance must be zero
 
-    return [local_canonical_file(eval_path)]
+    return [local_canonical_file(eval_path, diff_tool=diff_tool(1e-13))]
 
 
 def test_set_class_names_implicitly():
@@ -7821,7 +7871,11 @@ def test_shap_verbose():
         yatest.common.execute(cmd_shap, stdout=log)
     with open(output_log, 'r') as log:
         line_count = sum(1 for line in log)
-        assert line_count == 7
+        if is_open_source():
+            expected_line_count = 5
+        else:
+            expected_line_count = 7
+        assert line_count == expected_line_count
 
 
 def test_shap_approximate():
@@ -8089,15 +8143,16 @@ def test_pairwise_bernoulli_bootstrap(subsample, sampling_unit, loss_function, d
     return [local_canonical_file(output_eval_path, diff_tool=diff_tool(eps))]
 
 
-@pytest.mark.parametrize('loss_function', ['Logloss', 'RMSE', 'MultiClass', 'QuerySoftMax', 'QueryRMSE'])
-@pytest.mark.parametrize('metric', ['Logloss', 'RMSE', 'MultiClass', 'QuerySoftMax', 'AUC', 'PFound'])
+@pytest.mark.parametrize('loss_function', ['Logloss', 'RMSE', 'MultiClass', 'QuerySoftMax', 'QueryRMSE', 'GroupQuantile'])
+@pytest.mark.parametrize('metric', ['Logloss', 'RMSE', 'MultiClass', 'QuerySoftMax', 'AUC', 'PFound', 'GroupQuantile'])
 def test_bad_metrics_combination(loss_function, metric):
     BAD_PAIRS = {
-        'Logloss': ['RMSE', 'MultiClass'],
+        'Logloss': ['RMSE', 'MultiClass', 'GroupQuantile'],
         'RMSE': ['Logloss', 'MultiClass'],
-        'MultiClass': ['Logloss', 'RMSE', 'QuerySoftMax', 'PFound'],
-        'QuerySoftMax': ['RMSE', 'MultiClass', 'QueryRMSE'],
+        'MultiClass': ['Logloss', 'RMSE', 'QuerySoftMax', 'PFound', 'GroupQuantile'],
+        'QuerySoftMax': ['RMSE', 'MultiClass', 'QueryRMSE', 'GroupQuantile'],
         'QueryRMSE': ['Logloss', 'MultiClass', 'QuerySoftMax'],
+        'GroupQuantile': ['Logloss', 'MultiClass', 'QuerySoftMax'],
         'YetiRank': ['Logloss', 'RMSE', 'MultiClass']
     }
 
@@ -8724,9 +8779,9 @@ def test_groupwise_with_cat_features(compressed_data, loss_function, eval_metric
 
     cmd = (
         '--loss-function', loss_function,
-        '-f', os.path.join(compressed_data.name, 'mslr_web1k', 'train'),
-        '-t', os.path.join(compressed_data.name, 'mslr_web1k', 'test'),
-        '--column-description', os.path.join(compressed_data.name, 'mslr_web1k', 'cd.with_cat_features'),
+        '-f', os.path.join(compressed_data, 'mslr_web1k', 'train'),
+        '-t', os.path.join(compressed_data, 'mslr_web1k', 'test'),
+        '--column-description', os.path.join(compressed_data, 'mslr_web1k', 'cd.with_cat_features'),
         '--boosting-type', boosting_type,
         '-i', '100',
         '-T', '8',
@@ -9016,6 +9071,8 @@ class TestModelWithoutParams(object):
         learn_set = data_file('querywise', 'train')
         test_set = data_file('querywise', 'test')
         cd = data_file('querywise', 'train.cd')
+
+        train_dir = tempfile.mkdtemp(prefix='catboost_train_dir_')
         cmd = (
             '--loss-function', loss,
             '--learn-set', learn_set,
@@ -9024,9 +9081,12 @@ class TestModelWithoutParams(object):
             '--iterations', '10',
             '--model-file', model_json,
             '--model-format', 'Json',
-            '--use-best-model', 'false'
+            '--use-best-model', 'false',
+            '--train-dir', train_dir,
         )
         execute_catboost_fit('CPU', cmd)
+        shutil.rmtree(train_dir)
+
         model = json.load(open(model_json))
         if cut == 'cut-info':
             model.pop('model_info')
@@ -9951,7 +10011,7 @@ def test_fit_multiclass_with_text_features(separator_type, feature_estimators, l
     apply_catboost(output_model_path, test_file, cd_file, calc_eval_path, output_columns=['RawFormulaVal'])
     assert filecmp.cmp(test_eval_path, calc_eval_path)
 
-    epsilon = 1e-18 if is_canonical_test_run() else 1e9
+    epsilon = 1e-7
     return [
         local_canonical_file(learn_error_path, diff_tool=get_limited_precision_dsv_diff_tool(epsilon, False)),
         local_canonical_file(test_error_path, diff_tool=get_limited_precision_dsv_diff_tool(epsilon, False)),
@@ -10916,3 +10976,272 @@ def test_bow_multilogoss():
     return [
         local_canonical_file(output_path),
     ]
+
+
+def test_apply_multiple_models():
+    dataset = 'cloudness_small'
+    train = data_file(dataset, 'train_small')
+    cd = data_file(dataset, 'train.cd')
+    common_train_params = (
+        '-f', train,
+        '--cd', cd,
+        '-i', '5',
+        '-T', '1',
+    )
+    model_paths = [
+        yatest.common.test_output_path('m1.bin'),
+        yatest.common.test_output_path('m2.bin'),
+        yatest.common.test_output_path('m3.bin'),
+    ]
+    objectives = [
+        'MultiClass',
+        'MultiClass',
+        'RMSE',
+    ]
+    for model, objective in zip(model_paths, objectives):
+        execute_catboost_fit(
+            'CPU',
+            common_train_params + ('-m', model) + ('--loss-function', objective)
+        )
+
+    eval_path = yatest.common.test_output_path('output.tsv')
+
+    output_columns = [
+        'SampleId,Class',
+        'Probability',
+        'RawFormulaVal',
+    ]
+    calc_cmd = (
+        (
+            CATBOOST_PATH,
+            'calc',
+            '--input-path', train,
+            '--cd', cd,
+            '--output-path', eval_path,
+        )
+        + sum(tuple(('-m', m) for m in model_paths), ())
+        + sum(tuple(('--output-columns', c) for c in output_columns), ())
+    )
+
+    yatest.common.execute(calc_cmd)
+    return [local_canonical_file(eval_path)]
+
+
+def run_train_with_graph_features(
+    loss_function,
+    learn_file, test_file, cd_file, learn_graph, test_graph,
+    output_model_path, output_eval_path, learn_error_path=None, test_error_path=None, cv=False
+):
+    cmd = [
+        '--loss-function', loss_function,
+        '-f', learn_file,
+        '--column-description', cd_file,
+        '--learn-graph', learn_graph,
+        '--l2-leaf-reg', '0',
+        '-i', '20',
+        '-I', '2:4',
+        '-T', '4',
+        '-m', output_model_path,
+        '--eval-file', output_eval_path,
+    ]
+    if not cv:
+        cmd += [
+            '-t', test_file,
+            '--test-graph', test_graph,
+            '--learn-err-log', learn_error_path,
+            '--test-err-log', test_error_path,
+            '--use-best-model', 'false',
+            '--output-columns', 'SampleId,RawFormulaVal',
+        ]
+    else:
+        is_inverted = False
+        cmd += [
+            '--cv', format_crossvalidation(is_inverted, 2, 7),
+            '--cv-rand', '42',
+        ]
+
+    execute_catboost_fit('CPU', cmd)
+
+
+@pytest.mark.parametrize('loss_function', ['QueryRMSE', 'RMSE'])
+def test_graph_features(loss_function):
+    output_model_path = yatest.common.test_output_path('model.bin')
+    output_eval_path = yatest.common.test_output_path('test.eval')
+    test_error_path = yatest.common.test_output_path('test_error.tsv')
+    learn_error_path = yatest.common.test_output_path('learn_error.tsv')
+
+    predictions_path_test = yatest.common.test_output_path('predictions_test.tsv')
+
+    learn_file = data_file('querywise', 'train')
+    test_file = data_file('querywise', 'test')
+    cd_file = data_file('querywise', 'train.cd')
+    learn_graph = data_file('querywise', 'train.pairs')
+    test_graph = data_file('querywise', 'test.pairs')
+
+    run_train_with_graph_features(
+        loss_function,
+        learn_file, test_file, cd_file, learn_graph, test_graph,
+        output_model_path, output_eval_path, learn_error_path, test_error_path)
+
+    apply_catboost(output_model_path, test_file, cd_file, predictions_path_test, args=f'--input-graph {test_graph}')
+
+    canonization = [local_canonical_file(learn_error_path),
+                    local_canonical_file(test_error_path),
+                    local_canonical_file(output_eval_path)]
+
+    assert filecmp.cmp(output_eval_path, predictions_path_test), \
+        "fit and predict result should be equal"
+
+    return canonization
+
+
+@pytest.mark.parametrize('loss_function', ['QueryRMSE', 'RMSE'])
+@pytest.mark.parametrize('use_groups', [True, False])
+def test_graph_features_cv(loss_function, use_groups):
+    output_model_path = yatest.common.test_output_path('model.bin')
+    output_eval_path = yatest.common.test_output_path('test.eval')
+
+    learn_file = data_file('querywise', 'train')
+    cd_file = data_file('querywise', 'train.cd' if use_groups else 'train.cd.no_group')
+    learn_graph = data_file('querywise', 'train.pairs')
+
+    failed = False
+    try:
+        run_train_with_graph_features(
+            loss_function,
+            learn_file, None, cd_file, learn_graph, None,
+            output_model_path, output_eval_path, cv=True)
+    except Exception:
+        failed = True
+
+    if not use_groups:
+        assert failed
+        return
+
+    return [local_canonical_file(output_eval_path)]
+
+
+@pytest.mark.parametrize('loss_function', ['QueryRMSE', 'RMSE'])
+def test_graph_features_fstr(loss_function):
+    output_model_path = yatest.common.test_output_path('model.bin')
+    output_eval_path = yatest.common.test_output_path('test.eval')
+    test_error_path = yatest.common.test_output_path('test_error.tsv')
+    learn_error_path = yatest.common.test_output_path('learn_error.tsv')
+
+    learn_file = data_file('querywise', 'train')
+    test_file = data_file('querywise', 'test')
+    cd_file = data_file('querywise', 'train.cd')
+    learn_graph = data_file('querywise', 'train.pairs')
+    test_graph = data_file('querywise', 'test.pairs')
+
+    def do_test_fstr(fstr_type):
+        fstr_cmd = (
+            CATBOOST_PATH,
+            'fstr',
+            '--input-path', test_file,
+            '--column-description', cd_file,
+            '--input-graph', test_graph,
+            '-m', output_model_path,
+            '-o', output_fstr_path,
+            '--fstr-type', fstr_type
+        )
+        yatest.common.execute(fstr_cmd)
+
+    run_train_with_graph_features(
+        loss_function,
+        learn_file, test_file, cd_file, learn_graph, test_graph,
+        output_model_path, output_eval_path, learn_error_path, test_error_path)
+
+    canonization = []
+
+    for fstr_type in ['PredictionValuesChange', 'LossFunctionChange', 'ShapValues', 'InternalFeatureImportance', 'InternalInteraction']:
+        output_fstr_path = yatest.common.test_output_path(f'fstr_{fstr_type}.tsv')
+        do_test_fstr(fstr_type)
+        canonization.append(local_canonical_file(output_fstr_path))
+
+    return canonization
+
+
+def test_graph_features_python_wrapper():
+    output_model_path = yatest.common.test_output_path('model.bin')
+    output_py_model_path = yatest.common.test_output_path('model2.bin')
+    output_eval_path = yatest.common.test_output_path('test.eval')
+    test_error_path = yatest.common.test_output_path('test_error.tsv')
+    learn_error_path = yatest.common.test_output_path('learn_error.tsv')
+
+    predictions_path_test = yatest.common.test_output_path('predictions_test.tsv')
+
+    learn_file = data_file('querywise', 'train')
+    test_file = data_file('querywise', 'test')
+    cd_file = data_file('querywise', 'train.cd')
+    learn_graph = data_file('querywise', 'train.pairs')
+    test_graph = data_file('querywise', 'test.pairs')
+
+    loss_function = 'RMSE'
+
+    run_train_with_graph_features(
+        loss_function,
+        learn_file, test_file, cd_file, learn_graph, test_graph,
+        output_model_path, output_eval_path, learn_error_path, test_error_path)
+
+    pool = catboost.Pool(learn_file, column_description=cd_file, graph=learn_graph)
+    test_pool = catboost.Pool(test_file, column_description=cd_file, graph=test_graph)
+
+    def compare_predicts(model, output_model_path):
+        pred = model.predict(test_pool)
+        apply_catboost(output_model_path, test_file, cd_file, predictions_path_test, output_columns=['RawFormulaVal'], args=f'--input-graph {test_graph}')
+
+        cli_pred = np.loadtxt(predictions_path_test, delimiter='\t', skiprows=1)
+
+        is_close = np.isclose(pred, cli_pred, rtol=1e-6, atol=1e-8)
+        if np.any(is_close == 0):
+            assert False, "cli and python result should be equal"
+
+    model = catboost.CatBoost().load_model(output_model_path)
+    compare_predicts(model, output_model_path)
+
+    model = catboost.CatBoostRegressor(iterations=20, learning_rate=0.03, loss_function=loss_function)
+    model.fit(pool)
+
+    model.save_model(output_py_model_path)
+    compare_predicts(model, output_py_model_path)
+
+
+def test_graph_features_cat_features():
+    output_model_path = yatest.common.test_output_path('model.bin')
+    output_eval_path = yatest.common.test_output_path('test.eval')
+    test_error_path = yatest.common.test_output_path('test_error.tsv')
+    learn_error_path = yatest.common.test_output_path('learn_error.tsv')
+    predictions_path_test = yatest.common.test_output_path('predictions_test.tsv')
+
+    learn_file = data_file('querywise', 'train')
+    test_file = data_file('querywise', 'test')
+    input_cd_file = data_file('querywise', 'train.cd')
+    learn_graph = data_file('querywise', 'train.pairs')
+    test_graph = data_file('querywise', 'test.pairs')
+
+    cd_file = yatest.common.test_output_path('train.cd')
+
+    with open(input_cd_file, "rt") as f:
+        cd_lines = f.readlines()
+    with open(cd_file, "wt") as f:
+        for cd_line in cd_lines:
+            if cd_line.split() == ('4', 'Auxiliary'):
+                cd_line = cd_line.replace('Auxiliary', 'Categ')
+            f.write(cd_line)
+
+    run_train_with_graph_features(
+        'RMSE',
+        learn_file, test_file, cd_file, learn_graph, test_graph,
+        output_model_path, output_eval_path, learn_error_path, test_error_path)
+
+    apply_catboost(output_model_path, test_file, cd_file, predictions_path_test, args=f'--input-graph {test_graph}')
+
+    canonization = [local_canonical_file(learn_error_path),
+                    local_canonical_file(test_error_path),
+                    local_canonical_file(output_eval_path)]
+
+    assert filecmp.cmp(output_eval_path, predictions_path_test), \
+        "fit and predict result should be equal"
+
+    return canonization

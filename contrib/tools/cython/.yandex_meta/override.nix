@@ -1,10 +1,10 @@
 pkgs: attrs: with pkgs; with pkgs.python311.pkgs; with attrs; rec {
-  version = "0.29.37";
+  version = "3.2.9";
 
   src = fetchPypi {
-    pname = "Cython";
+    pname = "cython";
     inherit version;
-    hash = "sha256-+BPUpt2Ure5dT/JmGR0dlb9tQWSk+sxTVCLAIbJQTPs=";
+    hash = "sha256-0knJAiqxMoaxe9ZvMGCegAxfle/uywYWiZDHpmzs3mw=";
   };
 
   patches = [];

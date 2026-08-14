@@ -1,6 +1,6 @@
 DLL_JAVA(catboost4j-spark-impl)
 
-NO_WERROR()
+NO_COMPILER_WARNINGS()
 
 SUBSCRIBER(
     akhropov
@@ -34,12 +34,12 @@ SRCS(
 EXTRADIR(bindings/swiglib)
 
 PEERDIR(
+    library/cpp/containers/2d_array
     library/cpp/dbg_output
     library/cpp/grid_creator
     library/cpp/jni
     library/cpp/json
     library/cpp/par
-    library/cpp/threading/atomic
     library/cpp/threading/local_executor
     catboost/libs/cat_feature
     catboost/libs/column_description

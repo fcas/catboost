@@ -66,7 +66,7 @@ public:
     }
 };
 
-void GenerateDeepJson(TStringStream& stream, ui64 depth) {
+void GenerateDeepJsonArray(TStringStream& stream, ui64 depth) {
     stream << "{\"key\":";
     for (ui32 i = 0; i < depth - 1; ++i) {
         stream << "[";
@@ -75,6 +75,16 @@ void GenerateDeepJson(TStringStream& stream, ui64 depth) {
         stream << "]";
     }
     stream << "}";
+}
+
+void GenerateDeepJsonDict(TStringStream& stream, ui64 depth) {
+    for (ui64 i = 0; i < depth - 1; ++i) {
+        stream << "{\"key\":";
+    }
+    stream << "{}";
+    for (ui64 i = 0; i < depth - 1; ++i) {
+        stream << "}";
+    }
 }
 
 Y_UNIT_TEST_SUITE(TJsonReaderTest) {
@@ -364,7 +374,7 @@ Y_UNIT_TEST_SUITE(TJsonReaderTest) {
             UNIT_ASSERT_EQUAL(value["test"].GetDouble(), 0.0);
             UNIT_ASSERT_EQUAL(value["test"].GetDoubleRobust(), static_cast<double>(Max<ui64>()));
         } // Max<ui64>()
-    }     // TJsonDoubleTest
+    } // TJsonDoubleTest
 
     Y_UNIT_TEST(TJsonInvalidTest) {
         {
@@ -414,7 +424,7 @@ Y_UNIT_TEST_SUITE(TJsonReaderTest) {
         constexpr ui32 brackets = static_cast<ui32>(1e5);
 
         TStringStream jsonStream;
-        GenerateDeepJson(jsonStream, brackets);
+        GenerateDeepJsonArray(jsonStream, brackets);
 
         TJsonReaderConfig config;
         config.UseIterativeParser = true;
@@ -429,7 +439,7 @@ Y_UNIT_TEST_SUITE(TJsonReaderTest) {
 
         {
             TStringStream jsonStream;
-            GenerateDeepJson(jsonStream, depth);
+            GenerateDeepJsonArray(jsonStream, depth);
             TJsonReaderConfig config;
             config.MaxDepth = depth;
             TJsonValue v;
@@ -438,18 +448,34 @@ Y_UNIT_TEST_SUITE(TJsonReaderTest) {
 
         {
             TStringStream jsonStream;
-            GenerateDeepJson(jsonStream, depth);
+            GenerateDeepJsonArray(jsonStream, depth);
+            TJsonReaderConfig config;
+            config.MaxDepth = depth - 1;
+            TJsonValue v;
+            UNIT_ASSERT(!ReadJsonTree(&jsonStream, &config, &v));
+        }
+
+        {
+            TStringStream jsonStream;
+            GenerateDeepJsonDict(jsonStream, depth);
+            TJsonReaderConfig config;
+            config.MaxDepth = depth;
+            TJsonValue v;
+            UNIT_ASSERT(ReadJsonTree(&jsonStream, &config, &v));
+        }
+
+        {
+            TStringStream jsonStream;
+            GenerateDeepJsonDict(jsonStream, depth);
             TJsonReaderConfig config;
             config.MaxDepth = depth - 1;
             TJsonValue v;
             UNIT_ASSERT(!ReadJsonTree(&jsonStream, &config, &v));
         }
     }
-}
-
+} // Y_UNIT_TEST_SUITE(TJsonReaderTest)
 
 static const TString YANDEX_STREAMING_JSON("{\"a\":1}//d{\"b\":2}");
-
 
 Y_UNIT_TEST_SUITE(TCompareReadJsonFast) {
     Y_UNIT_TEST(NoEndl) {
@@ -476,4 +502,4 @@ Y_UNIT_TEST_SUITE(TCompareReadJsonFast) {
         bool fast_success = NJson::ReadJsonFastTree(streamingJson, &parsed, false);
         UNIT_ASSERT(success != fast_success);
     }
-}
+} // Y_UNIT_TEST_SUITE(TCompareReadJsonFast)

@@ -6,6 +6,9 @@ import sys
 import shutil
 import errno
 
+# Explicitly enable local imports
+# Don't forget to add imported scripts to inputs of the calling command!
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import process_command_files as pcf
 
 
@@ -59,9 +62,12 @@ if __name__ == '__main__':
             except OSError:
                 pass
             shutil.copy(s, d)
-    elif mode == 'copy_all_files':
+    elif mode == 'copy_all_files' or mode == 'link_or_copy_all_files':
+        # link_or_copy_all_files hardlinks files instead of copying their bytes (falling back to a
+        # copy across devices / on Windows). Both modes skip files that already exist at destination.
         src = args[0]
         dst = args[1]
+        put = link_or_copy if mode == 'link_or_copy_all_files' else shutil.copy
         for root, _, files in os.walk(src):
             for f in files:
                 if os.path.islink(os.path.join(root, f)):
@@ -73,7 +79,7 @@ if __name__ == '__main__':
                     os.makedirs(os.path.dirname(file_dst))
                 except OSError:
                     pass
-                shutil.copy(os.path.join(root, f), file_dst)
+                put(os.path.join(root, f), file_dst)
     elif mode == 'rename_if_exists':
         if os.path.exists(args[0]):
             shutil.move(args[0], args[1])

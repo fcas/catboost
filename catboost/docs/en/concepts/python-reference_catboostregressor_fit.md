@@ -60,7 +60,7 @@ If a nontrivial value of the `cat_features` parameter is specified in the constr
 {% endcut %}
 
 
-{% cut "{{ python-type--list }}, {{ python-type--numpy-ndarray }}, {{ python-type--pandasDataFrame }}, {{ python-type--pandasSeries }}" %}
+{% cut "{{ python-type--list }}, {{ python-type--numpy-ndarray }}, {{ python-type--pandasDataFrame }}, {{ python-type--pandasSeries }}, polars.DataFrame" %}
 
 The input training dataset in the form of a two-dimensional feature matrix.
 
@@ -105,7 +105,7 @@ Do not use this parameter if the input training dataset (specified in the `X` pa
 
 A one-dimensional array of categorical columns indices.
 
-Use it only if the `X` parameter is a two-dimensional feature matrix (has one of the following types: {{ python-type--list }}, {{ python-type__np_ndarray }}, {{ python-type--pandasDataFrame }}, {{ python-type--pandasSeries }}).
+Use it only if the `X` parameter is a two-dimensional feature matrix (has one of the following types: {{ python-type--list }}, {{ python-type__np_ndarray }}, {{ python-type--pandasDataFrame }}, {{ python-type--pandasSeries }}), polars.DataFrame.
 
 {% note info %}
 
@@ -188,6 +188,7 @@ A one-dimensional array of embedding columns indices (specified as integers) or 
 - {{ python-type--numpy-ndarray }}
 - {{ python-type--pandasDataFrame }}
 - {{ python-type--pandasSeries }}
+- [polars.Series](https://docs.pola.rs/api/python/stable/reference/series/index.html)
 
 **Default value**
 
@@ -214,6 +215,8 @@ Do not use this parameter if the input training dataset (specified in the `X` p
 
 - {{ python-type--list }}
 - {{ python-type--numpy-ndarray }}
+- [polars.Series](https://docs.pola.rs/api/python/stable/reference/series/index.html)
+- [polars.DataFrame](https://docs.pola.rs/api/python/stable/reference/dataframe/index.html)
 
 **Default value**
 
@@ -241,7 +244,7 @@ This option requires a validation dataset to be provided.
 
 **Default value**
 
-True if a validation set is input (the `eval_set` parameter is defined) and at least one of the label values of objects in this set differs from the others. False otherwise.
+True if validation sets are specified (the `eval_set` parameter is defined) and at least one of the label values of objects in the last validation dataset differs from the others. False otherwise.
 
 **Supported processing units**
 
@@ -253,7 +256,7 @@ True if a validation set is input (the `eval_set` parameter is defined) and at l
 
 The validation dataset or datasets used for the following processes:
 - [overfitting detector](../concepts/overfitting-detector.md)
-- best iteration selection
+- the best iteration selection
 - monitoring metrics' changes
 
 **Default value**
@@ -276,7 +279,7 @@ None
 
 {% note info %}
 
-Only a single validation dataset can be input if the training is performed on GPU
+GPU training does not support multiple validation datasets for now
 
 {% endnote %}
 

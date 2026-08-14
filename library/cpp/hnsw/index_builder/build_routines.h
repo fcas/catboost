@@ -1,5 +1,6 @@
 #pragma once
 
+#include "distance_traits.h"
 #include "internal_build_options.h"
 #include "index_data.h"
 
@@ -20,6 +21,7 @@
 #include <util/generic/xrange.h>
 #include <util/generic/yexception.h>
 #include <util/generic/ylimits.h>
+#include <util/stream/buffer.h>
 #include <util/stream/file.h>
 #include <util/stream/format.h>
 #include <util/stream/labeled.h>
@@ -62,150 +64,6 @@ namespace NHnsw {
     constexpr double REPORT_PROGRESS_INTERVAL = 1.0; // seconds
 
     TVector<size_t> GetLevelSizes(size_t numVectors, size_t levelSizeDecay);
-
-    template <class TDistance,
-              class TDistanceResult = typename TDistance::TResult,
-              class TDistanceLess = typename TDistance::TLess>
-    struct TDistanceTraits {
-        struct TNeighbor {
-            TDistanceResult Dist;
-            size_t Id;
-
-            Y_SAVELOAD_DEFINE(Dist, Id);
-        };
-
-        using TNeighbors = TVector<TNeighbor>;
-
-        // We store already computed neighbors in dense format to improve memory locality.
-        // Also, we use 'columnar' storage because most of the time we need only neighbor ids.
-        // We switch between dense storage (TDenseGraph) and regular one (TGraph) as we need.
-        class TDenseGraph {
-        public:
-            TDenseGraph() = default;
-
-            TDenseGraph(size_t neighborsCount, size_t maxSize)
-                : NeighborsCount(neighborsCount)
-                , MaxSize(maxSize)
-            {
-                Distances.reserve(maxSize * NeighborsCount);
-                Ids.reserve(maxSize * NeighborsCount);
-            }
-
-            size_t GetSize() const { return Size; }
-
-            size_t GetNeighborsCount() const { return NeighborsCount; }
-
-            const TVector<size_t>& GetIds() const { return Ids; }
-
-            TArrayRef<const size_t> NeighborIds(size_t index) const {
-                return {Ids.data() + index * NeighborsCount, NeighborsCount};
-            }
-
-            void AppendBatch(const TVector<TNeighbors>& batch) {
-                // Make sure we don't reallocate memory here.
-                // This is very important for performance.
-                Y_ASSERT(Distances.size() + batch.size() * NeighborsCount <= Distances.capacity());
-                Y_ASSERT(Ids.size() + batch.size() * NeighborsCount <= Ids.capacity());
-
-                for (const auto& neighbors: batch) {
-                    Y_ABORT_UNLESS(neighbors.size() == NeighborsCount);
-                    for (const auto& neighbor: neighbors) {
-                        Distances.push_back(neighbor.Dist);
-                        Ids.push_back(neighbor.Id);
-                    }
-                }
-
-                Size += batch.size();
-            }
-
-            void CopyNeighborsFrom(const TDenseGraph& other) {
-                Distances.insert(Distances.end(), other.Distances.begin(), other.Distances.end());
-                Ids.insert(Ids.end(), other.Ids.begin(), other.Ids.end());
-                Size = other.Size;
-            }
-
-            void AppendNeighborsTo(size_t index, TNeighbors* result) const {
-                result->reserve(result->size() + NeighborsCount);
-
-                for (const auto i: xrange(index * NeighborsCount, (index + 1) * NeighborsCount)) {
-                    result->push_back({Distances[i], Ids[i]});
-                }
-            }
-
-            void ReplaceNeighbors(size_t index, const TNeighbors& neighbors) {
-                const size_t offset = index * NeighborsCount;
-
-                for (const size_t i: xrange(neighbors.size())) {
-                    Distances[i + offset] = neighbors[i].Dist;
-                    Ids[i + offset] = neighbors[i].Id;
-                }
-            }
-
-            void Reserve(const size_t maxSize) {
-                MaxSize = Max(MaxSize, maxSize);
-                Distances.reserve(MaxSize * NeighborsCount);
-                Ids.reserve(MaxSize * NeighborsCount);
-            }
-
-            void Save(IOutputStream* out) const {
-                SaveMany(out, NeighborsCount, MaxSize, Distances, Ids, Size);
-            }
-
-            void Load(IInputStream* in) {
-                LoadMany(in, NeighborsCount, MaxSize);
-                Distances.reserve(MaxSize * NeighborsCount);
-                Ids.reserve(MaxSize * NeighborsCount);
-                LoadMany(in, Distances, Ids, Size);
-            }
-
-        private:
-            size_t NeighborsCount;
-            size_t MaxSize;
-            TVector<TDistanceResult> Distances;
-            TVector<size_t> Ids;
-            size_t Size = 0;
-        };
-
-        using TGraph = TVector<TNeighbors>;
-        using TLevels = TDeque<TGraph>;
-        using TDenseLevels = TDeque<TDenseGraph>;
-
-        struct TNeighborLess : TDistanceLess {
-            TNeighborLess(const TDistanceLess& base)
-                : TDistanceLess(base)
-            {
-            }
-            bool operator()(const TNeighbor& a, const TNeighbor& b) const {
-                return TDistanceLess::operator()(a.Dist, b.Dist);
-            }
-        };
-        struct TNeighborGreater : TNeighborLess {
-            TNeighborGreater(const TNeighborLess& base)
-                : TNeighborLess(base)
-            {
-            }
-            bool operator()(const TNeighbor& a, const TNeighbor& b) const {
-                return TNeighborLess::operator()(b, a);
-            }
-        };
-        using TNeighborMinQueue = TPriorityQueue<TNeighbor, TVector<TNeighbor>, TNeighborGreater>;
-        using TNeighborMaxQueue = TPriorityQueue<TNeighbor, TVector<TNeighbor>, TNeighborLess>;
-
-        const TDistance Distance;
-        const TDistanceLess DistanceLess;
-        const TNeighborLess NeighborLess;
-        const TNeighborGreater NeighborGreater;
-
-        TDistanceTraits(const TDistance& distance = {},
-                        const TDistanceLess& distanceLess = {})
-            : Distance(distance)
-            , DistanceLess(distanceLess)
-            , NeighborLess(distanceLess)
-            , NeighborGreater(NeighborLess)
-        {
-        }
-    };
-
 
     namespace NRoutines {
         template <class TDistanceTraits, class TLevels, class TItemStorage>
@@ -303,40 +161,51 @@ namespace NHnsw {
         {
         }
 
-        void MaybeSaveSnapshot(size_t buildEnd) {
-            if (Opts.SnapshotFile == "") {
+        void SaveSnapshotToStream(size_t buildEnd, IOutputStream& out) {
+            size_t numItems = ItemStorage.GetNumItems();
+            size_t maxNeighbors = Opts.MaxNeighbors;
+            size_t levelSizeDecay = Opts.LevelSizeDecay;
+
+            ::SaveMany(&out, numItems, maxNeighbors, levelSizeDecay, buildEnd, Levels);
+            out.Finish();
+
+            HNSW_LOG << "\nSaved " << buildEnd << " items to snapshot" << Endl;
+        }
+
+        void MaybeSaveSnapshot(size_t buildEnd, const bool isModifiable = false) {
+            if (isModifiable && (Levels.front().GetNeighborsCount() != Opts.MaxNeighbors || buildEnd == 0)) {
                 return;
             }
 
-            TString tempName = Opts.SnapshotFile + "_" + CreateGuidAsString() + ".tmp";
-            try {
-                TOFStream out(tempName);
+            if (!Opts.SnapshotFile.empty()) {
+                TString tempName = Opts.SnapshotFile + "_" + CreateGuidAsString() + ".tmp";
+                try {
+                    HNSW_LOG << "\nSaving to snapshot file: " << Opts.SnapshotFile << Endl;
+                    TOFStream out(tempName);
+                    SaveSnapshotToStream(buildEnd, out);
+                    NFs::Rename(tempName, Opts.SnapshotFile);
+                } catch (...) {
+                    HNSW_LOG << "\nCan't save snapshot. Exception: " << CurrentExceptionMessage() << Endl;
+                    if (NFs::Exists(tempName)) {
+                        NFs::Remove(tempName);
+                    }
+                }
+            }
 
-                size_t numItems = ItemStorage.GetNumItems();
-                size_t maxNeighbors = Opts.MaxNeighbors;
-                size_t levelSizeDecay = Opts.LevelSizeDecay;
-
-                ::SaveMany(&out, numItems, maxNeighbors, levelSizeDecay, buildEnd, Levels);
-                out.Finish();
-
-                NFs::Rename(tempName, Opts.SnapshotFile);
-                HNSW_LOG << "\nSnapshot saved to " << Opts.SnapshotFile << Endl;
-            } catch(...) {
-                HNSW_LOG << "\nCan't save snapshot. Exception: " << CurrentExceptionMessage() << Endl;
-                if (NFs::Exists(tempName)) {
-                    NFs::Remove(tempName);
+            if (Opts.SnapshotBlobPtr) {
+                try {
+                    HNSW_LOG << "\nSaving to snapshot blob" << Endl;
+                    TBufferOutput out;
+                    SaveSnapshotToStream(buildEnd, out);
+                    *Opts.SnapshotBlobPtr = TBlob::FromBuffer(out.Buffer());
+                } catch (...) {
+                    HNSW_LOG << "\nCan't save snapshot. Exception: " << CurrentExceptionMessage() << Endl;
                 }
             }
         }
 
-        void TryRestoreFromSnapshot(size_t* builtSize, const bool isModifiable = false) {
-            if (Opts.SnapshotFile == "" || !NFs::Exists(Opts.SnapshotFile)) {
-                return;
-            }
-
+        void TryRestoreFromSnapshotFromStream(size_t* builtSize, IInputStream& in, const bool isModifiable = false) {
             try {
-                TIFStream in(Opts.SnapshotFile);
-
                 size_t restoredNumItems;
                 size_t restoredMaxNeighbors;
                 size_t restoredLevelSizeDecay;
@@ -351,17 +220,32 @@ namespace NHnsw {
                 Y_ENSURE(restoredMaxNeighbors == Opts.MaxNeighbors, "Different MaxNeighbors in snapshot");
                 Y_ENSURE(restoredLevelSizeDecay == Opts.LevelSizeDecay, "Different LevelSizeDecay in snapshot");
 
-                HNSW_LOG << "Restored from " << Opts.SnapshotFile << Endl;
+                HNSW_LOG << "Restored " << *builtSize << " items" << Endl;
             } catch (...) {
                 HNSW_LOG << "Can't restore from snapshot. Exception: " << CurrentExceptionMessage() << Endl;
                 throw;
             }
         }
 
+        void TryRestoreFromSnapshot(size_t* builtSize, const bool isModifiable = false) {
+            if (!Opts.SnapshotFile.empty() && NFs::Exists(Opts.SnapshotFile)) {
+                HNSW_LOG << "\nTrying to restore from snapshot file: " << Opts.SnapshotFile << Endl;
+                TIFStream in(Opts.SnapshotFile);
+                TryRestoreFromSnapshotFromStream(builtSize, in, isModifiable);
+            }
+
+            if (!*builtSize && Opts.SnapshotBlobPtr && !Opts.SnapshotBlobPtr->Empty()) {
+                // Restore from blob only if nothing was restored from file.
+                HNSW_LOG << "\nTrying to restore from snapshot blob!" << Endl;
+                TMemoryInput in(Opts.SnapshotBlobPtr->AsStringBuf());
+                TryRestoreFromSnapshotFromStream(builtSize, in, isModifiable);
+            }
+        }
+
         THnswIndexData BuildForUpdates() {
             Y_ENSURE(Opts.MaxNeighbors < Opts.BatchSize, LabeledOutput(Opts.MaxNeighbors, Opts.BatchSize));
             Y_ENSURE(Opts.LevelSizeDecay > ItemStorage.GetNumItems(), LabeledOutput(Opts.LevelSizeDecay, ItemStorage.GetNumItems()));
-            Y_ENSURE(Opts.SnapshotFile != "");
+            Y_ENSURE(Opts.SnapshotFile != "" || Opts.SnapshotBlobPtr);
             return BuildImpl(true);
         }
 
@@ -534,7 +418,7 @@ namespace NHnsw {
             CheckInterrupted(); // check after long-lasting operation
         }
 
-        void BuildLevel(size_t levelSize, size_t builtLevelSize, size_t batchSize) {
+        void BuildLevel(size_t levelSize, size_t builtLevelSize, size_t batchSize, bool isModifiable = false) {
             auto& level = Levels.front();
             if (Levels.size() > 1 && builtLevelSize == 0) {
                 // copy previous level to new empty one
@@ -550,6 +434,10 @@ namespace NHnsw {
             double lastSaveSnapshotTime = GlobalWatch.Passed();
             for (size_t batchBegin = builtLevelSize; batchBegin < levelSize;) {
                 const size_t curBatchSize = Min(levelSize - batchBegin, batchSize);
+                if (isModifiable && curBatchSize != batchSize) {
+                    // Save the last complete batch. If all batches are complete save after the loop.
+                    MaybeSaveSnapshot(batchBegin, isModifiable);
+                }
                 const size_t batchEnd = batchBegin + curBatchSize;
                 ProcessBatch(batchBegin, batchEnd, &level);
                 batchBegin = batchEnd;
@@ -569,11 +457,13 @@ namespace NHnsw {
                     HNSW_LOG << Endl << batchEnd << '\t' << localWatch.Passed() / numProcessed << '\t' << numProcessed / localWatch.Passed() << Endl;
                 }
                 if (GlobalWatch.Passed() - lastSaveSnapshotTime > Opts.SnapshotInterval) {
-                    MaybeSaveSnapshot(batchEnd);
+                    MaybeSaveSnapshot(batchEnd, isModifiable);
                     lastSaveSnapshotTime = GlobalWatch.Passed();
                 }
             }
-            MaybeSaveSnapshot(levelSize);
+            if (!isModifiable || levelSize % batchSize == 0) {
+                MaybeSaveSnapshot(levelSize, isModifiable);
+            }
         }
 
     private:
@@ -599,17 +489,22 @@ namespace NHnsw {
                 size_t batchSize = level == 0 ? Opts.BatchSize : Opts.UpperLevelBatchSize;
                 size_t buildStart = alreadyBuilt;
                 if (Levels.size() < levelSizes.size() - level) {
-                    Levels.emplace_front(Min(Opts.MaxNeighbors, levelSizes[level] - 1),levelSizes[level]);
+                    Levels.emplace_front(Min(Opts.MaxNeighbors, levelSizes[level] - 1), levelSizes[level]);
                     buildStart = 0;
                 }
                 if (isModifiable) {
                     Levels.front().Reserve(numItems);
                 }
-                BuildLevel(levelSizes[level], buildStart, batchSize);
+                BuildLevel(levelSizes[level], buildStart, batchSize, isModifiable);
             }
 
             if (Opts.ReportProgress) {
                 HNSW_LOG << Endl << "Done in " << HumanReadable(TDuration::Seconds(GlobalWatch.Passed())) << Endl;
+            }
+            if constexpr (requires { Levels[0].ClearDistances(); }) {
+                for (auto& level : Levels) {
+                    level.ClearDistances();
+                }
             }
             return ConstructIndexData(Opts, Levels);
         }

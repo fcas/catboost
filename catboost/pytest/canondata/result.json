@@ -1,14 +1,4 @@
 {
-    "large_dist_test.test_dist_train_many_trees[calc_block=5000000]": [
-        {
-            "uri": "file://large_dist_test.test_dist_train_many_trees_calc_block=5000000_/test.eval"
-        }
-    ],
-    "large_dist_test.test_dist_train_many_trees[calc_block=60]": [
-        {
-            "uri": "file://large_dist_test.test_dist_train_many_trees_calc_block=60_/test.eval"
-        }
-    ],
     "test.test_all_targets[calc_block=5000000-Ordered-SymmetricTree-CrossEntropy]": [
         {
             "uri": "file://test.test_all_targets_calc_block=5000000-Ordered-SymmetricTree-CrossEntropy_/test.eval"
@@ -538,6 +528,11 @@
     "test.test_apply_multiclass_labels_from_data[RawFormulaVal]": [
         {
             "uri": "file://test.test_apply_multiclass_labels_from_data_RawFormulaVal_/eval.txt"
+        }
+    ],
+    "test.test_apply_multiple_models": [
+        {
+            "uri": "file://test.test_apply_multiple_models/output.tsv"
         }
     ],
     "test.test_averagegain[Ordered]": [
@@ -4897,6 +4892,83 @@
             "uri": "file://test.test_gradient_walker/test.eval"
         }
     ],
+    "test.test_graph_features[QueryRMSE]": [
+        {
+            "uri": "file://test.test_graph_features_QueryRMSE_/learn_error.tsv"
+        },
+        {
+            "uri": "file://test.test_graph_features_QueryRMSE_/test_error.tsv"
+        },
+        {
+            "uri": "file://test.test_graph_features_QueryRMSE_/test.eval"
+        }
+    ],
+    "test.test_graph_features[RMSE]": [
+        {
+            "uri": "file://test.test_graph_features_RMSE_/learn_error.tsv"
+        },
+        {
+            "uri": "file://test.test_graph_features_RMSE_/test_error.tsv"
+        },
+        {
+            "uri": "file://test.test_graph_features_RMSE_/test.eval"
+        }
+    ],
+    "test.test_graph_features_cat_features": [
+        {
+            "uri": "file://test.test_graph_features_cat_features/learn_error.tsv"
+        },
+        {
+            "uri": "file://test.test_graph_features_cat_features/test_error.tsv"
+        },
+        {
+            "uri": "file://test.test_graph_features_cat_features/test.eval"
+        }
+    ],
+    "test.test_graph_features_cv[True-QueryRMSE]": [
+        {
+            "uri": "file://test.test_graph_features_cv_True-QueryRMSE_/test.eval"
+        }
+    ],
+    "test.test_graph_features_cv[True-RMSE]": [
+        {
+            "uri": "file://test.test_graph_features_cv_True-RMSE_/test.eval"
+        }
+    ],
+    "test.test_graph_features_fstr[QueryRMSE]": [
+        {
+            "uri": "file://test.test_graph_features_fstr_QueryRMSE_/fstr_PredictionValuesChange.tsv"
+        },
+        {
+            "uri": "file://test.test_graph_features_fstr_QueryRMSE_/fstr_LossFunctionChange.tsv"
+        },
+        {
+            "uri": "file://test.test_graph_features_fstr_QueryRMSE_/fstr_ShapValues.tsv"
+        },
+        {
+            "uri": "file://test.test_graph_features_fstr_QueryRMSE_/fstr_InternalFeatureImportance.tsv"
+        },
+        {
+            "uri": "file://test.test_graph_features_fstr_QueryRMSE_/fstr_InternalInteraction.tsv"
+        }
+    ],
+    "test.test_graph_features_fstr[RMSE]": [
+        {
+            "uri": "file://test.test_graph_features_fstr_RMSE_/fstr_PredictionValuesChange.tsv"
+        },
+        {
+            "uri": "file://test.test_graph_features_fstr_RMSE_/fstr_LossFunctionChange.tsv"
+        },
+        {
+            "uri": "file://test.test_graph_features_fstr_RMSE_/fstr_ShapValues.tsv"
+        },
+        {
+            "uri": "file://test.test_graph_features_fstr_RMSE_/fstr_InternalFeatureImportance.tsv"
+        },
+        {
+            "uri": "file://test.test_graph_features_fstr_RMSE_/fstr_InternalInteraction.tsv"
+        }
+    ],
     "test.test_group_features": [
         {
             "uri": "file://test.test_group_features/learn_error.tsv"
@@ -4963,6 +5035,11 @@
     "test.test_groupwise_with_cat_features[loss_function=YetiRankPairwise,eval_metric=NDCG,boosting_type=Plain]": [
         {
             "uri": "file://test.test_groupwise_with_cat_features_loss_function=YetiRankPairwise_eval_metric=NDCG_boosting_type=Plain_/test_error.tsv"
+        }
+    ],
+    "test.test_ignore_text_feature": [
+        {
+            "uri": "file://test.test_ignore_text_feature/output.txt"
         }
     ],
     "test.test_ignored_features[Ordered]": [
@@ -5918,6 +5995,11 @@
     "test.test_logloss_with_not_binarized_target[calc_block=60-Plain]": [
         {
             "uri": "file://test.test_logloss_with_not_binarized_target_calc_block=60-Plain_/test.eval"
+        }
+    ],
+    "test.test_loss_change_fstr[GroupQuantile]": [
+        {
+            "uri": "file://test.test_loss_change_fstr_GroupQuantile_/fstr.tsv"
         }
     ],
     "test.test_loss_change_fstr[PairLogitPairwise]": [
@@ -7519,9 +7601,14 @@
             "uri": "file://test.test_only_categorical_features_calc_block=60-Plain_/test.eval"
         }
     ],
-    "test.test_output_columns_format": {
-        "uri": "file://test.test_output_columns_format/test.eval"
-    },
+    "test.test_output_columns_format": [
+        {
+            "uri": "file://test.test_output_columns_format/test.eval"
+        },
+        {
+            "uri": "file://test.test_output_columns_format/predict_test.eval"
+        }
+    ],
     "test.test_output_options": {
         "uri": "file://test.test_output_options/training_options.json"
     },
@@ -8270,6 +8357,11 @@
             "uri": "file://test.test_quantile_exact_distributed/test_1.eval"
         }
     ],
+    "test.test_quantile_targets[Ordered-SymmetricTree-GroupQuantile]": [
+        {
+            "uri": "file://test.test_quantile_targets_Ordered-SymmetricTree-GroupQuantile_/test.eval"
+        }
+    ],
     "test.test_quantile_targets[Ordered-SymmetricTree-LogLinQuantile]": [
         {
             "uri": "file://test.test_quantile_targets_Ordered-SymmetricTree-LogLinQuantile_/test.eval"
@@ -8278,6 +8370,11 @@
     "test.test_quantile_targets[Ordered-SymmetricTree-Quantile]": [
         {
             "uri": "file://test.test_quantile_targets_Ordered-SymmetricTree-Quantile_/test.eval"
+        }
+    ],
+    "test.test_quantile_targets[Plain-Depthwise-GroupQuantile]": [
+        {
+            "uri": "file://test.test_quantile_targets_Plain-Depthwise-GroupQuantile_/test.eval"
         }
     ],
     "test.test_quantile_targets[Plain-Depthwise-LogLinQuantile]": [
@@ -8290,6 +8387,11 @@
             "uri": "file://test.test_quantile_targets_Plain-Depthwise-Quantile_/test.eval"
         }
     ],
+    "test.test_quantile_targets[Plain-Lossguide-GroupQuantile]": [
+        {
+            "uri": "file://test.test_quantile_targets_Plain-Lossguide-GroupQuantile_/test.eval"
+        }
+    ],
     "test.test_quantile_targets[Plain-Lossguide-LogLinQuantile]": [
         {
             "uri": "file://test.test_quantile_targets_Plain-Lossguide-LogLinQuantile_/test.eval"
@@ -8298,6 +8400,11 @@
     "test.test_quantile_targets[Plain-Lossguide-Quantile]": [
         {
             "uri": "file://test.test_quantile_targets_Plain-Lossguide-Quantile_/test.eval"
+        }
+    ],
+    "test.test_quantile_targets[Plain-SymmetricTree-GroupQuantile]": [
+        {
+            "uri": "file://test.test_quantile_targets_Plain-SymmetricTree-GroupQuantile_/test.eval"
         }
     ],
     "test.test_quantile_targets[Plain-SymmetricTree-LogLinQuantile]": [
@@ -9767,14 +9874,84 @@
             "uri": "file://test.test_target_border/test.eval"
         }
     ],
-    "test.test_text_ignored_features[Ordered]": [
+    "test.test_text_ignored_features[0-Ordered]": [
         {
-            "uri": "file://test.test_text_ignored_features_Ordered_/test.eval"
+            "uri": "file://test.test_text_ignored_features_0-Ordered_/test.eval"
         }
     ],
-    "test.test_text_ignored_features[Plain]": [
+    "test.test_text_ignored_features[0-Plain]": [
         {
-            "uri": "file://test.test_text_ignored_features_Plain_/test.eval"
+            "uri": "file://test.test_text_ignored_features_0-Plain_/test.eval"
+        }
+    ],
+    "test.test_text_ignored_features[0:2-Ordered]": [
+        {
+            "uri": "file://test.test_text_ignored_features_0_2-Ordered_/test.eval"
+        }
+    ],
+    "test.test_text_ignored_features[0:2-Plain]": [
+        {
+            "uri": "file://test.test_text_ignored_features_0_2-Plain_/test.eval"
+        }
+    ],
+    "test.test_text_ignored_features[0:2:7-Ordered]": [
+        {
+            "uri": "file://test.test_text_ignored_features_0_2_7-Ordered_/test.eval"
+        }
+    ],
+    "test.test_text_ignored_features[0:2:7-Plain]": [
+        {
+            "uri": "file://test.test_text_ignored_features_0_2_7-Plain_/test.eval"
+        }
+    ],
+    "test.test_text_ignored_features[0:7-Ordered]": [
+        {
+            "uri": "file://test.test_text_ignored_features_0_7-Ordered_/test.eval"
+        }
+    ],
+    "test.test_text_ignored_features[0:7-Plain]": [
+        {
+            "uri": "file://test.test_text_ignored_features_0_7-Plain_/test.eval"
+        }
+    ],
+    "test.test_text_ignored_features[2-4:6-Ordered]": [
+        {
+            "uri": "file://test.test_text_ignored_features_2-4_6-Ordered_/test.eval"
+        }
+    ],
+    "test.test_text_ignored_features[2-4:6-Plain]": [
+        {
+            "uri": "file://test.test_text_ignored_features_2-4_6-Plain_/test.eval"
+        }
+    ],
+    "test.test_text_ignored_features[2-Ordered]": [
+        {
+            "uri": "file://test.test_text_ignored_features_2-Ordered_/test.eval"
+        }
+    ],
+    "test.test_text_ignored_features[2-Plain]": [
+        {
+            "uri": "file://test.test_text_ignored_features_2-Plain_/test.eval"
+        }
+    ],
+    "test.test_text_ignored_features[2:7-Ordered]": [
+        {
+            "uri": "file://test.test_text_ignored_features_2_7-Ordered_/test.eval"
+        }
+    ],
+    "test.test_text_ignored_features[2:7-Plain]": [
+        {
+            "uri": "file://test.test_text_ignored_features_2_7-Plain_/test.eval"
+        }
+    ],
+    "test.test_text_ignored_features[7-Ordered]": [
+        {
+            "uri": "file://test.test_text_ignored_features_7-Ordered_/test.eval"
+        }
+    ],
+    "test.test_text_ignored_features[7-Plain]": [
+        {
+            "uri": "file://test.test_text_ignored_features_7-Plain_/test.eval"
         }
     ],
     "test.test_text_processing_options[MultiClass-dictionaries0]": [

@@ -7,11 +7,12 @@
 
 ```python
 predict(data,
-    prediction_type=None,
-    ntree_start={{ fit--ntree_start }},
-    ntree_end=0,
-    thread_count={{ fit__thread_count__wrappers }},
-    verbose=None)
+        prediction_type=None,
+        ntree_start={{ fit--ntree_start }},
+        ntree_end=0,
+        thread_count={{ fit__thread_count__wrappers }},
+        verbose=None,
+        task_type="CPU")
 ```
 
 ## {{ dl--parameters }} {#parameters}
@@ -37,6 +38,7 @@ For multiple objects:
 - {{ python-type--pandasDataFrame }}
 - {{ python_type__pandas-SparseDataFrame }}
 - {{ python-type--pandasSeries }}
+- [polars.DataFrame](https://docs.pola.rs/api/python/stable/reference/dataframe/index.html)
 - [{{ python-type__FeaturesData }}](../concepts/python-features-data__desc.md)
 
 
@@ -133,6 +135,24 @@ bool
 **Default value**
 
 None
+
+### task_type
+
+#### Description
+
+The evaluator type.
+
+Possible values:
+    - 'CPU'
+    - 'GPU' (models with only numerical features are supported for now)
+
+**Possible types**
+
+string
+
+**Default value**
+
+CPU
 
 
 ## {{ dl__return-value }} {#output-format}

@@ -2,10 +2,10 @@
 
 #include <jni.h>
 
-#include <util/generic/noncopyable.h>
-#include <util/generic/string.h>
-#include <util/generic/vector.h>
-#include <util/generic/yexception.h>
+#include <exception>
+#include <memory>
+#include <string>
+#include <string_view>
 
 namespace NJni {
 
@@ -15,10 +15,17 @@ static constexpr int JNI_VERSION = JNI_VERSION_1_4;
 
 // TJniException ////////////////////////////////////////////////////////////////////////////////
 
-class TJniException : public yexception {
+class TJniException : public std::exception {
 public:
     TJniException() = default;
     explicit TJniException(int error);
+
+    const char* what() const noexcept override;
+
+    TJniException& append(std::string_view error);
+
+private:
+    std::string Error;
 };
 
 void RethrowExceptionFromJavaToCpp();
@@ -27,30 +34,43 @@ void RethrowExceptionFromJavaToCpp();
 
 struct TGlobalRefPolicy {
     static jobject Ref(jobject object, JNIEnv* env) { return env->NewGlobalRef(object); }
-    static void Unref(jobject object, JNIEnv* env) { return env->DeleteGlobalRef(object); }
+    static void Unref(jobject object, JNIEnv* env) {
+        if (!object) {
+            return;
+        }
+        return env->DeleteGlobalRef(object);
+    }
 };
 
 struct TIntentionallyLeakedRefPolicy {
     static jobject Ref(jobject object, JNIEnv* env) { return env->NewGlobalRef(object); }
-    static void Unref(jobject object, JNIEnv* env) {
-        Y_UNUSED(object);
-        Y_UNUSED(env);
+    static void Unref(jobject /* object */, JNIEnv* /* env */) {
         return;
     }
 };
 
 struct TWeakGlobalRefPolicy {
     static jobject Ref(jobject object, JNIEnv* env) { return env->NewWeakGlobalRef(object); }
-    static void Unref(jobject object, JNIEnv* env) { return env->DeleteWeakGlobalRef(object); }
+    static void Unref(jobject object, JNIEnv* env) {
+        if (!object) {
+            return;
+        }
+        return env->DeleteWeakGlobalRef(object);
+    }
 };
 
 struct TLocalRefPolicy {
     static jobject Ref(jobject object, JNIEnv*) { return object; }
-    static void Unref(jobject object, JNIEnv* env) { return env->DeleteLocalRef(object); }
+    static void Unref(jobject object, JNIEnv* env) {
+        if (!object) {
+            return;
+        }
+        return env->DeleteLocalRef(object);
+    }
 };
 
 template <typename TRefPolicy, typename TObject>
-class TObjectRef : public TMoveOnly {
+class TObjectRef {
 public:
     TObjectRef(): Object() {}
     explicit TObjectRef(TObject object);
@@ -58,6 +78,9 @@ public:
     ~TObjectRef();
 
     TObjectRef& operator= (TObjectRef&& rhs) noexcept;
+
+    TObjectRef(const TObjectRef&) = delete;
+    TObjectRef& operator=(const TObjectRef&) = delete;
 
     operator bool() const { return !!Object; }
 
@@ -89,17 +112,25 @@ public:
     static TJniEnv* Get();
 
 public:
+    // For better understanding of possible difference see link below
+    // https://stackoverflow.com/questions/1771679/difference-between-threads-context-class-loader-and-normal-classloader
+    // Context class loader is made default for compatibility with existing code
+    enum class EClassLoader {
+        CONTEXT = 0,
+        NORMAL
+    };
+
     // Should be used only in pair with JNI_OnLoad/Unload.
     //
-    jint Init(JavaVM* jvm);
+    jint Init(JavaVM* jvm, EClassLoader classLoader = EClassLoader::CONTEXT);
     void Cleanup(JavaVM* jvm);
 
     // Thread safe JniEnv.
     //
     JNIEnv* GetJniEnv() const;
 
-    TLocalClassRef FindClass(TStringBuf name) const;
-    jmethodID GetMethodID(jclass clazz, TStringBuf name, TStringBuf signature, bool isStatic) const;
+    TLocalClassRef FindClass(std::string_view name) const;
+    jmethodID GetMethodID(jclass clazz, std::string_view name, std::string_view signature, bool isStatic) const;
 
     TLocalRef CallStaticObjectMethod(jclass clazz, jmethodID methodId, ...) const;
     TLocalRef CallObjectMethod(jobject object, jmethodID methodId, ...) const;
@@ -111,12 +142,12 @@ public:
     void SetByteArrayRegion(jbyteArray array, jsize start, jsize len, const char* buf) const;
     void GetByteArrayRegion(jbyteArray array, jsize start, jsize len, char* buf) const;
     jsize GetArrayLength(jarray array) const;
-    TLocalStringRef NewStringUTF(TStringBuf str) const;
+    TLocalStringRef NewStringUTF(std::string_view str) const;
     const char* GetStringUTFChars(jstring str, jboolean* isCopy) const; // FIXME: leaky without ReleaseUTFChars
 
     bool acquireLocalRef(const NJni::TWeakGlobalRef& weakRef, NJni::TLocalRef& output) const;
 private:
-    void TryToSetClassLoader();
+    void TryToSetClassLoader(EClassLoader classLoader);
 
 private:
     struct TResources;

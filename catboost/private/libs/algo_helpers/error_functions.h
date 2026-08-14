@@ -7,13 +7,12 @@
 #include "survival_aft_utils.h"
 
 #include <catboost/private/libs/data_types/pair.h>
+#include <catboost/libs/helpers/math_utils.h>
 #include <catboost/libs/model/eval_processing.h>
 #include <catboost/private/libs/options/catboost_options.h>
 #include <catboost/private/libs/options/enums.h>
 #include <catboost/private/libs/options/restrictions.h>
 
-#include <library/cpp/containers/2d_array/2d_array.h>
-#include <library/cpp/fast_exp/fast_exp.h>
 #include <library/cpp/threading/local_executor/local_executor.h>
 
 #include <util/generic/algorithm.h>
@@ -299,7 +298,7 @@ public:
         Y_ASSERT(target.size() == 1);
         const double diff = (target[0] - approx[0]);
         double prec = -2 * approx[1];
-        FastExpInplace(&prec, /*count*/ 1);
+        NCB::FastExpWithInfInplace(&prec, /*count*/ 1);
         (*der)[0] = weight * diff;
         (*der)[1] = weight * (Sqr(diff) * prec - 1);
 
@@ -630,6 +629,31 @@ private:
     }
 };
 
+class TRMSPEError final : public IDerCalcer {
+public:
+    static constexpr double RMSPE_DER3 = 0.0;
+
+public:
+    explicit TRMSPEError(bool isExpApprox)
+        : IDerCalcer(isExpApprox)
+    {
+        CB_ENSURE(isExpApprox == false, "Approx format does not match");
+    }
+
+private:
+    double CalcDer(double approx, float target) const override {
+        return (target - approx) / (target * target);
+    }
+
+    double CalcDer2(double /*approx*/, float target) const override {
+        return - 1 / (target * target);
+    }
+
+    double CalcDer3(double /*approx*/, float /*target*/) const override {
+        return RMSPE_DER3;
+    }
+};
+
 class TPoissonError final : public IDerCalcer {
 public:
     explicit TPoissonError(bool isExpApprox)
@@ -723,7 +747,7 @@ public:
         const int approxDimension = approx.ysize();
 
         TVector<double> prob = approx;
-        FastExpInplace(prob.data(), prob.ysize());
+        NCB::FastExpWithInfInplace(prob.data(), prob.ysize());
         for (int dim = 0; dim < approxDimension; ++dim) {
             prob[dim] /= (1 + prob[dim]);
             (*der)[dim] = -prob[dim];
@@ -767,7 +791,7 @@ public:
         TArrayRef<double> derRef(*der);
         CopyN(approx.data(), approx.ysize(), derRef.data());
 
-        FastExpInplace(derRef.data(), derRef.ysize());
+        NCB::FastExpWithInfInplace(derRef.data(), derRef.ysize());
         for (int dim = 0; dim < approxDimension; ++dim) {
             derRef[dim] = -derRef[dim] / (1 + derRef[dim]);
         }
@@ -884,6 +908,100 @@ public:
                 }
             });
     }
+private:
+    double CalcQueryAvrg(
+        int start,
+        int count,
+        const TVector<double>& approxes,
+        const TVector<float>& targets,
+        const TVector<float>& weights
+    ) const {
+        double querySum = 0;
+        double queryCount = 0;
+        for (int docId = start; docId < start + count; ++docId) {
+            double w = weights.empty() ? 1 : weights[docId];
+            querySum += (targets[docId] - approxes[docId]) * w;
+            queryCount += w;
+        }
+
+        double queryAvrg = 0;
+        if (queryCount > 0) {
+            queryAvrg = querySum / queryCount;
+        }
+        return queryAvrg;
+    }
+};
+
+class TGroupQuantileError final : public IDerCalcer {
+public:
+    static constexpr double QUANTILE_DER2_AND_DER3 = 0.0;
+
+public:
+    const double Alpha;
+    const double Delta;
+
+public:
+    explicit TGroupQuantileError(bool isExpApprox)
+        : IDerCalcer(isExpApprox, EErrorType::QuerywiseError)
+        , Alpha(0.5)
+        , Delta(1e-6)
+    {
+        CB_ENSURE(isExpApprox == false, "Approx format does not match");
+    }
+
+    explicit TGroupQuantileError(double alpha, double delta, bool isExpApprox)
+        : IDerCalcer(isExpApprox, /*maxDerivativeOrder*/ 3, /* errorType */ EErrorType::QuerywiseError)
+        , Alpha(alpha)
+        , Delta(delta)
+    {
+        Y_ASSERT(Alpha > -1e-6 && Alpha < 1.0 + 1e-6);
+        Y_ASSERT(Delta >= 0 && Delta <= 1e-2);
+        CB_ENSURE(isExpApprox == false, "Approx format does not match");
+    }
+
+    void CalcDersForQueries(
+        int queryStartIndex,
+        int queryEndIndex,
+        const TVector<double>& approxes,
+        const TVector<float>& targets,
+        const TVector<float>& weights,
+        const TVector<TQueryInfo>& queriesInfo,
+        TArrayRef<TDers> ders,
+        ui64 /*randomSeed*/,
+        NPar::ILocalExecutor* localExecutor
+    ) const override {
+        const int start = queriesInfo[queryStartIndex].Begin;
+        NPar::ParallelFor(
+            *localExecutor,
+            queryStartIndex,
+            queryEndIndex,
+            [&] (ui32 queryIndex) {
+                const int begin = queriesInfo[queryIndex].Begin;
+                const int end = queriesInfo[queryIndex].End;
+                const int querySize = end - begin;
+
+                const double queryAvrg = CalcQueryAvrg(begin, querySize, approxes, targets, weights);
+                for (int docId = begin; docId < end; ++docId) {
+                    const double val = targets[docId] - approxes[docId] - queryAvrg;
+                    ders[docId - start].Der2 = QUANTILE_DER2_AND_DER3;
+                    ders[docId - start].Der3 = QUANTILE_DER2_AND_DER3;
+                    if (!weights.empty()) {
+                        ders[docId - start].Der2 *= weights[docId];
+                        ders[docId - start].Der3 *= weights[docId];
+                    }
+                    if (abs(val) < Delta) {
+                        ders[docId - start].Der1 = 0;
+                        continue;
+                    }
+                    ders[docId - start].Der1 = (val > 0) ? Alpha : -(1 - Alpha);
+                    if (!weights.empty()) {
+                        ders[docId - start].Der1 *= weights[docId];
+                    }
+                }
+            }
+        );
+    }
+
 private:
     double CalcQueryAvrg(
         int start,

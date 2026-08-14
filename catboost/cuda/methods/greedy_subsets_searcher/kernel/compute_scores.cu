@@ -1,6 +1,6 @@
 #include "compute_scores.cuh"
 
-#include <library/cpp/cuda/wrappers/arch.cuh>
+#include <library/cpp/cuda/wrappers/arch.h>
 
 #include <catboost/cuda/cuda_util/kernel/instructions.cuh>
 #include <catboost/cuda/cuda_util/kernel/random_gen.cuh>
@@ -8,7 +8,7 @@
 #include <catboost/cuda/cuda_util/kernel/fill.cuh>
 #include <catboost/cuda/methods/kernel/score_calcers.cuh>
 
-#include <contrib/libs/nvidia/cub/cub/block/block_reduce.cuh>
+#include <cub/block/block_reduce.cuh>
 
 #include <cmath>
 #include <exception>
@@ -43,8 +43,8 @@ namespace NKernel {
             result->Score = scores[0];\
             result->Gain = gains[0];\
         } else {\
-            result->FeatureId = -1;\
-            result->BinId = -1;\
+            result->FeatureId = static_cast<ui32>(-1);\
+            result->BinId = static_cast<ui32>(-1);\
             result->Score = FLT_MAX;\
             result->Gain = FLT_MAX;\
         }\

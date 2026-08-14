@@ -123,6 +123,7 @@ TSplit TCandidateInfo::GetSplit(
                 return TSplit();
             }
     }
+    Y_UNREACHABLE();
 }
 
 
@@ -183,6 +184,14 @@ THolder<IDerCalcer> BuildError(
             double delta = lossParams.contains("delta") ? FromString<float>(lossParams.at("delta")) : 1e-6;
             return MakeHolder<TQuantileError>(alpha, delta, isStoreExpApprox);
         }
+        case ELossFunction::GroupQuantile: {
+            const auto& lossParams = params.LossFunctionDescription->GetLossParamsMap();
+            const auto badParam = FindIf(lossParams, [] (const auto& param) { return !EqualToOneOf(param.first, "alpha", "delta"); });
+            CB_ENSURE(badParam == lossParams.end(), "Invalid loss description " << ToString(badParam->first));
+            double alpha = lossParams.contains("alpha") ? FromString<float>(lossParams.at("alpha")) : 0.5;
+            double delta = lossParams.contains("delta") ? FromString<float>(lossParams.at("delta")) : 1e-6;
+            return MakeHolder<TGroupQuantileError>(alpha, delta, isStoreExpApprox);
+        }
         case ELossFunction::MultiQuantile: {
             const auto& lossParams = params.LossFunctionDescription->GetLossParamsMap();
             const auto badParam = FindIf(lossParams, [] (const auto& param) { return !EqualToOneOf(param.first, "alpha", "delta"); });
@@ -216,6 +225,8 @@ THolder<IDerCalcer> BuildError(
         }
         case ELossFunction::MAPE:
             return MakeHolder<TMAPError>(isStoreExpApprox);
+        case ELossFunction::RMSPE:
+            return MakeHolder<TRMSPEError>(isStoreExpApprox);
         case ELossFunction::Poisson:
             return MakeHolder<TPoissonError>(isStoreExpApprox);
         case ELossFunction::MultiClass:

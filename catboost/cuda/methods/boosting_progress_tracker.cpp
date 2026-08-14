@@ -67,7 +67,8 @@ namespace NCatboostCuda {
         }
 
         if (HasTest && IsSkipOnTestFlags[0]) {
-            CATBOOST_WARNING_LOG << "Warning: Eval metric " << Metrics[0]->GetMetricDescription() << " needs Target data, but test dataset does not have it so it won't be calculated" << Endl;
+            CATBOOST_WARNING_LOG << "Warning: Eval metric " << Metrics[0]->GetCpuMetric().GetDescription()
+                << " needs Target data, but the test dataset does not have it so it won't be calculated" << Endl;
         }
     }
 
@@ -112,6 +113,15 @@ namespace NCatboostCuda {
         ++Iteration;
     }
 
+    static inline double GetFinalErrorFromMetric(const IGpuMetric* metric, TMetricHolder&& holder) {
+        if (dynamic_cast<const TGpuCustomMetric*>(metric)) {
+            auto* customMetric = dynamic_cast<const TGpuCustomMetric*>(metric);
+            return customMetric->GetFinalError(std::move(holder));
+        } else {
+            return metric->GetCpuMetric().GetFinalError(std::move(holder));
+        }
+    }
+
     void TBoostingProgressTracker::TrackLearnErrors(IMetricCalcer& metricCalcer) {
         History.LearnMetricsHistory.emplace_back();
         if (!ShouldCalcMetricOnIteration()) {
@@ -121,7 +131,7 @@ namespace NCatboostCuda {
         for (size_t i = 0; i < Metrics.size(); ++i) {
             if (!IsSkipOnTrainFlags[i]) {
                 const auto& metric = Metrics[i].Get();
-                auto metricValue = Metrics[i]->GetCpuMetric().GetFinalError(metricCalcer.Compute(metric));
+                auto metricValue = GetFinalErrorFromMetric(Metrics[i].Get(), metricCalcer.Compute(metric));
                 History.AddLearnError(metric->GetCpuMetric(), metricValue);
             }
         }
@@ -144,7 +154,7 @@ namespace NCatboostCuda {
                 continue;
             }
 
-            auto metricValue = Metrics[i]->GetCpuMetric().GetFinalError(metricCalcer.Compute(Metrics[i].Get()));
+            auto metricValue = GetFinalErrorFromMetric(Metrics[i].Get(), metricCalcer.Compute(Metrics[i].Get()));
             History.AddTestError(0 /*testIdx*/, Metrics[i]->GetCpuMetric(), metricValue, i == errorTrackerMetricIdx);
 
             if (i == errorTrackerMetricIdx) {

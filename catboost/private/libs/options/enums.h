@@ -142,6 +142,7 @@ enum class ELossFunction {
     Huber,
     Tweedie,
     Cox,
+    RMSPE,
 
     RMSEWithUncertainty,
 
@@ -159,6 +160,7 @@ enum class ELossFunction {
     YetiRank,
     YetiRankPairwise,
     QueryRMSE,
+    GroupQuantile,
     QuerySoftMax,
     QueryCrossEntropy,
     StochasticFilter,

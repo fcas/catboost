@@ -11,11 +11,21 @@ To apply a previously trained {{ product }} model in Java:
     |--------|-----------------|------------|
     | macOS (versions currently supported by Apple) | x86_64 and arm64 |no|
     | Linux (compatible with [manylinux2014 platform tag](https://peps.python.org/pep-0599/) ) | x86_64 and aarch64 |yes|
-    | Windows 10 and 11 | x86_64 |yes|
+    | Windows (versions 10, 11, Server 2022, Server 2025) | x86_64 |yes|
 
     {% note info %}
 
     Release binaries for x86_64 CPU architectures are built with SIMD extensions SSE2, SSE3, SSSE3, SSE4 enabled. If you need to run {{ product }} on older CPUs that do not support these instruction sets build [{{ product }} artifacts yourself](../installation/java-installation-build-from-source-maven.md)
+
+    {% endnote %}
+
+    {% note info %}
+
+    {% include [reusage-installation-gpu-support-from-the-box__p](../_includes/work_src/reusage-installation/gpu-support-from-the-box__p.md) %}
+
+    {% include [installation-compute-capability-requirements](../_includes/work_src/reusage-code-examples/compute-capability-requirements.md) %}
+
+    Inference on CUDA-enabled GPUs requires NVIDIA Driver of version 450.80.02 or higher.
 
     {% endnote %}
 

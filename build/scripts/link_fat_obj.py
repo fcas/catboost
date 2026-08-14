@@ -1,10 +1,14 @@
 import argparse
+import os
 import subprocess
 import sys
 
-import process_command_files as pcf
+# Explicitly enable local imports
+# Don't forget to add imported scripts to inputs of the calling command!
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import process_command_files as pcf  # noqa: E402
 
-from process_whole_archive_option import ProcessWholeArchiveOption
+from process_whole_archive_option import ProcessWholeArchiveOption  # noqa: E402
 
 YA_ARG_PREFIX = '-Ya,'
 
@@ -76,13 +80,11 @@ def main():
     linker = groups['linker']
     archiver = groups['archiver']
 
-    if 'YA_XCODE' in str(sys.argv):
-        no_pie = '-Wl,-no_pie'
-    else:
-        no_pie = '-Wl,-no-pie'
-
     do_link = (
-        linker + ['-o', obj_output, '-Wl,-r', '-nodefaultlibs', '-nostartfiles', no_pie] + global_srcs + auto_input
+        linker
+        + ['-o', obj_output, '-Wl,-r', '-nodefaultlibs', '-nostartfiles', '-Wl,-no-pie']
+        + global_srcs
+        + auto_input
     )
     do_archive = archiver + [lib_output] + peers
     do_globals = None

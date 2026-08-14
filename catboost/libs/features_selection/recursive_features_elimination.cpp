@@ -242,6 +242,9 @@ namespace NCB {
                     for (const auto& featuresTag : featuresSelectOptions.FeaturesTagsForSelect.Get()) {
                         if (!eliminatedFeaturesTagsSet.contains(featuresTag)) {
                             FeaturesTags.insert(featuresTag);
+                            CB_ENSURE(
+                                tagsMap.at(featuresTag).Cost != 0,
+                                "Cost of features with tag '" << featuresTag << "' should be non-zero");
                             CurrentCostValue += tagsMap.at(featuresTag).Cost;
                         }
                     }
@@ -504,7 +507,7 @@ namespace NCB {
         if (selectSet->Grouping == EFeaturesSelectionGrouping::Individual) {
             TVector<ui32> featureIndices(featureEffect.size());
             Iota(featureIndices.begin(), featureIndices.end(), 0);
-            SortBy(featureIndices, [&](ui32 featureIdx) {
+            StableSortBy(featureIndices, [&](ui32 featureIdx) {
                 return featureEffect[featureIdx];
             });
 
@@ -527,10 +530,11 @@ namespace NCB {
                 for (auto featureIdx : featuresTagDescription.Features) {
                     effect += featureEffect[featureIdx];
                 }
+                // TSelectSet guarantees featuresTagDescription.Cost != 0
                 tagsWithEffect.push_back(std::pair{featuresTagName, effect / featuresTagDescription.Cost});
             }
 
-            SortBy(tagsWithEffect, [](const auto& pair) { return pair.second; } );
+            StableSortBy(tagsWithEffect, [](const auto& pair) { return pair.second; } );
 
             ui32 eliminatedEntitiesCount = 0;
             for (const auto& [featuresTagName, effect] : tagsWithEffect) {
@@ -823,7 +827,7 @@ namespace NCB {
         {
             CATBOOST_NOTICE_LOG << "Train final model" << Endl;
             outputFileOptions.SetTrainDir(initialOutputFileOptions.GetTrainDir() + "/model-final");
-            const TFullModel finalModel = trainModel(/*isFinal*/ featuresSelectOptions.TrainFinalModel.Get());
+            TFullModel finalModel = trainModel(/*isFinal*/ featuresSelectOptions.TrainFinalModel.Get());
             const double lossValue = calcLoss(applyModel(finalModel), finalModel);
 
             lossGraphBuilders.ForFeatures.AddPrecisePoint(summary.EliminatedFeatures.size(), lossValue);
@@ -836,7 +840,7 @@ namespace NCB {
 
             if (featuresSelectOptions.TrainFinalModel.Get()) {
                 if (dstModel != nullptr) {
-                    *dstModel = finalModel;
+                    *dstModel = std::move(finalModel);
                 } else {
                     CATBOOST_NOTICE_LOG << "Save final model" << Endl;
                     ExportFullModel(

@@ -8,8 +8,7 @@
 ## {{ dl--invoke-format }} {#call-format}
 
 ```python
-model.select_features(
-                X,
+select_features(X,
                 y=None,
                 eval_set=None,
                 features_for_select=None,
@@ -73,7 +72,7 @@ Do not use this parameter if the input training dataset (specified in the `X` p
 
 The validation dataset or datasets used for the following processes:
 - [overfitting detector](../concepts/overfitting-detector.md)
-- best iteration selection
+- the best iteration selection
 - monitoring metrics' changes
 
 **Possible types**

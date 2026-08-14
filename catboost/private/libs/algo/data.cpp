@@ -7,6 +7,7 @@
 #include <catboost/libs/data/quantization.h>
 #include <catboost/libs/helpers/dispatch_generic_lambda.h>
 #include <catboost/libs/helpers/exception.h>
+#include <catboost/libs/helpers/memory_utils.h>
 #include <catboost/libs/helpers/restorable_rng.h>
 #include <catboost/libs/logging/logging.h>
 #include <catboost/libs/metrics/metric.h>
@@ -173,7 +174,8 @@ namespace NCB {
             GetMetricDescriptions(*params),
             /*knownModelApproxDimension*/ Nothing(),
             inputClassificationInfo,
-            dataProcessingOptions.AllowConstLabel.Get()
+            dataProcessingOptions.AllowConstLabel.Get(),
+            srcData->MetaInfo.FeaturesLayout->HasGraphForAggregatedFeatures()
         );
 
         CB_ENSURE(dataCanBeEmpty || srcData->RawTargetData.GetObjectCount() > 0, "Dataset " << datasetName  << " is empty");
@@ -283,10 +285,8 @@ namespace NCB {
             TMaybeOwningConstArrayHolder<TText> constTextData
                 = TMaybeOwningConstArrayHolder<TText>::CreateOwning(*textData, textData.GetResourceHolder());
             return MakeIntrusive<TTextDataSet>(std::move(constTextData), dictionary);
-        } else {
-            CB_ENSURE_INTERNAL(false, "CreateTextDataSet: unsupported column type");
         }
-        Y_UNREACHABLE();
+        CB_ENSURE_INTERNAL(false, "CreateTextDataSet: unsupported column type");
     }
 
     static TEmbeddingDataSetPtr CreateEmbeddingDataSet(
@@ -346,15 +346,10 @@ namespace NCB {
 
         const TQuantizedObjectsDataProvider& learnDataProvider = *pools.Learn->ObjectsData;
 
-        const ui32 sourceTextsCount = learnDataProvider.GetQuantizedFeaturesInfo()->GetTextDigitizers().GetSourceTextsCount();
         bool needLearnTarget = false;
-        pools.Learn->MetaInfo.FeaturesLayout->IterateOverAvailableFeatures<EFeatureType::Text>(
-            [&](TTextFeatureIdx tokenizedTextFeatureIdx) {
-                const ui32 tokenizedFeatureIdx = tokenizedTextFeatureIdx.Idx;
-                const auto& featureDescription = tokenizedFeaturesDescription[tokenizedFeatureIdx - sourceTextsCount];
-                needLearnTarget = needLearnTarget || HasOnlineEstimators(featureDescription.FeatureEstimators.Get());
-            }
-        );
+        for (auto& description : tokenizedFeaturesDescription) {
+            needLearnTarget = needLearnTarget || HasOnlineEstimators(description.FeatureEstimators.Get());
+        }
         needLearnTarget = needLearnTarget || quantizedFeaturesInfo->GetFeaturesLayout()->GetEmbeddingFeatureCount();
 
         const auto targetCount = pools.Learn->TargetData->GetTargetDimension();
@@ -367,6 +362,7 @@ namespace NCB {
 
         if (quantizedFeaturesInfo->GetFeaturesLayout()->GetTextFeatureCount()) {
 
+            const ui32 sourceTextsCount = quantizedFeaturesInfo->GetFeaturesLayout()->GetTextFeatureCount();
             pools.Learn->MetaInfo.FeaturesLayout->IterateOverAvailableFeatures<EFeatureType::Text>(
                 [&](TTextFeatureIdx tokenizedTextFeatureIdx) {
 

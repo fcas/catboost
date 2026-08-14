@@ -695,8 +695,8 @@ TVector<ui32> TModelTrees::GetTreeLeafCounts() const {
 void TModelTrees::SetScaleAndBias(const TScaleAndBias& scaleAndBias) {
     CB_ENSURE(IsValidFloat(scaleAndBias.Scale), "Invalid scale " << scaleAndBias.Scale);
     TVector<double> bias = scaleAndBias.GetBiasRef();
-    for (auto b: bias) {
-        CB_ENSURE(IsValidFloat(b), "Invalid bias " << b);
+    for (auto i : xrange(bias.size())) {
+        CB_ENSURE(IsValidFloat(bias[i]), "Invalid bias[" << i << "] : " << bias[i]);
     }
     if (bias.empty()) {
         bias.resize(GetDimensionsCount(), 0);
@@ -1218,8 +1218,8 @@ void TFullModel::Load(IInputStream* s) {
             } else {
                 CB_ENSURE(
                     false,
-                    "Got unknown partId = " << modelPartId << " via deserialization"
-                        << "only static ctr and text processing collection model parts are supported"
+                    "Got unknown partId = " << modelPartId << " via deserialization. "
+                        << "Only static ctr, text or embedding processing collection model parts are supported"
                 );
             }
         }
@@ -1238,7 +1238,8 @@ void TFullModel::InitNonOwning(const void* binaryBuffer, size_t binarySize) {
 
     size_t coreSize = ::LoadSize(&in);
     const ui8* fbPtr = reinterpret_cast<const ui8*>(in.Buf());
-    in.Skip(coreSize);
+    const size_t skippedCore = in.Skip(coreSize);
+    CB_ENSURE(skippedCore == coreSize, "Failed to skip core data in zero-copy model loading");
 
     {
         flatbuffers::Verifier verifier(fbPtr, coreSize, 64 /* max depth */, 256000000 /* max tables */);
@@ -1274,8 +1275,8 @@ void TFullModel::InitNonOwning(const void* binaryBuffer, size_t binarySize) {
             } else {
                 CB_ENSURE(
                     false,
-                    "Got unknown partId = " << modelPartId << " via deserialization"
-                                            << "only static ctr and text processing collection model parts are supported"
+                    "Got unknown partId = " << modelPartId << " via deserialization. "
+                                            << "Only static ctr, text or embedding processing collection model parts are supported"
                 );
             }
         }

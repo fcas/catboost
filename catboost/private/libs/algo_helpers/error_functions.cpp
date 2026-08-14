@@ -74,7 +74,7 @@ void IDerCalcer::CalcDersRange(
     const bool hasDelta = approxDeltas != nullptr;
     const bool useTDers = ders != nullptr;
     DispatchGenericLambda(
-        [=] (auto useTDers, auto isExpApprox, auto hasDelta) {
+        [=, this] (auto useTDers, auto isExpApprox, auto hasDelta) {
             switch (maxDerivativeOrder) {
                 case 1:
                     return CalcDersRangeImpl<1, useTDers, isExpApprox, hasDelta>(
@@ -120,7 +120,7 @@ static TVector<int> ArgSort(
 ) {
     TVector<int> labelOrder(count);
     std::iota(labelOrder.begin(), labelOrder.end(), start);
-    std::sort(
+    StableSort(
         labelOrder.begin(),
         labelOrder.end(),
         [=] (int lhs, int rhs) {
@@ -197,7 +197,7 @@ void TCoxError::CalcDersRange(
 
         const double grad = static_cast<double>(y > 0) - expP * rk;
         const double hess = expP * rk - expP * expP * sk;
-        ders[ind].Der1 = - grad;
+        ders[ind].Der1 = grad;
         ders[ind].Der2 = - hess;
 
         lastExpP = expP;
@@ -248,7 +248,7 @@ void TCoxError::CalcFirstDerRange(
         }
 
         const double grad = static_cast<double>(y > 0) - expP * rk;
-        firstDers[ind] = - grad;
+        firstDers[ind] = grad;
 
         lastExpP = expP;
     }
@@ -285,7 +285,7 @@ namespace {
                         ExpSrc[i - ViewBegin] = Src[i];
                     }
                 }
-                FastExpInplace(ExpSrc.data(), ViewEnd - ViewBegin);
+                NCB::FastExpWithInfInplace(ExpSrc.data(), ViewEnd - ViewBegin);
             }
             return ExpSrc[idx - ViewBegin];
         }
@@ -340,7 +340,7 @@ static void CalcCrossEntropyDerRangeImpl(
         }
     }
     if (weights != nullptr) {
-#if !defined(CLANG_COVERAGE) && !defined(undefined_sanitizer_enabled)
+#if defined(__clang__) && !defined(CLANG_COVERAGE) && !defined(undefined_sanitizer_enabled)
 #pragma clang loop vectorize_width(4) interleave_count(2)
 #endif
         for (int i = start; i < start + count; ++i) {
@@ -873,7 +873,7 @@ void TLambdaMartError::CalcDersForSingleQuery(
 
     TVector<size_t> order(count);
     Iota(order.begin(), order.end(), 0);
-    Sort(order.begin(), order.end(), [&](int a, int b) {
+    StableSort(order.begin(), order.end(), [&](int a, int b) {
         return approxes[a] > approxes[b];
     });
 
@@ -925,7 +925,7 @@ void TLambdaMartError::CalcDersForSingleQuery(
 double TLambdaMartError::CalcIdealMetric(TConstArrayRef<float> target, size_t queryTopSize) const {
     double score = 0;
     TVector<float> sortedTargets(target.begin(), target.end());
-    Sort(sortedTargets, [](float a, float b) {
+    StableSort(sortedTargets, [](float a, float b) {
         return a > b;
     });
     for (size_t id = 0; id < queryTopSize; ++id) {
@@ -1050,7 +1050,7 @@ void TStochasticRankError::CalcDersForSingleQuery(
         }
         const double noiseSum = Accumulate(noise, 0.0);
         Iota(order.begin(), order.end(), 0);
-        Sort(order.begin(), order.end(), [&](int a, int b) {
+        StableSort(order.begin(), order.end(), [&](int a, int b) {
             return scores[a] > scores[b];
         });
         if (EqualToOneOf(TargetMetric, ELossFunction::DCG, ELossFunction::NDCG, ELossFunction::FilteredDCG) && sample == 0) {
@@ -1524,7 +1524,7 @@ TVector<double> TStochasticRankError::ComputeDCGPosWeights(
 
     if (TargetMetric == ELossFunction::NDCG) {
         TVector<float> sortedTargets(targets.begin(), targets.end());
-        Sort(sortedTargets, [](float a, float b) {
+        StableSort(sortedTargets, [](float a, float b) {
             return a > b;
         });
         const double idealDCG = CalcDCG(sortedTargets, posWeights);

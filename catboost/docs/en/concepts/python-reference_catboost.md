@@ -155,6 +155,21 @@ If omitted, default values are used.
 {% include [get_borders-get_borders__desc__div](../_includes/work_src/reusage-python/get_borders__desc__div.md) %}
 
 
+### [get_cat_feature_indices](python-reference_catboost_get_cat_feature_indices.md)
+
+Return the indices of categorical features used by the model.
+
+
+### [get_embedding_feature_indices](python-reference_catboost_get_embedding_feature_indices.md)
+
+Return the indices of embedding features used by the model.
+
+
+### [get_text_feature_indices](python-reference_catboost_get_text_feature_indices.md)
+
+Return the indices of text features used by the model.
+
+
 
 ### [get_evals_result](python-reference_catboost_get_evals_result.md)
 
@@ -262,7 +277,11 @@ If omitted, default values are used.
 
 {% include [save_borders-save_model__div_desc](../_includes/work_src/reusage-python/save_model__div_desc.md) %}
 
+### [save_model](python-reference_catboost_save_model.md)
 
+
+
+{% include [sections-with-methods-desc-save_model--purpose](../_includes/work_src/reusage/save_model--purpose.md) %}
 
 ### [select_features](python-reference_catboost_select_features.md)
 

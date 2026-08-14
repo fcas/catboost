@@ -2,6 +2,8 @@
 
 #include "ref.h"
 
+#include <library/cpp/yt/mpl/type_traits.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +33,9 @@ public:
             chunkSize,
             maxSmallBlockSizeRatio,
             GetRefCountedTypeCookie<TTag>())
-    { }
+    {
+        static_assert(NMpl::IsEmptyClass<TTag>());
+    }
 
     //! Allocates #sizes bytes without any alignment.
     TSharedMutableRef AllocateUnaligned(i64 size);

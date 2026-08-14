@@ -1,5 +1,7 @@
 # {{ python-package }} installation
 
+{% include [supported-versions](../_includes/work_src/reusage-installation/python__supported-versions.md) %}
+
 {% note alert %}
 
 Installation is only supported by the 64-bit version of Python.
@@ -31,6 +33,10 @@ To install the {{ python-package }}:
     - [Build a wheel package](../installation/python-installation-method-build-a-wheel-package.md)
 
 1. {% include [general-install-data-visualization-support-package](../_includes/work_src/reusage-installation/install-data-visualization-support-package.md) %}
+
+1. (Optionally) Additional setup if user-defined functions are used:
+
+    {% include [python__user-defined-functions-dependencies](../_includes/work_src/reusage-installation/python__user-defined-functions-dependencies.md) %}
 
 1. (Optionally) [Test {{ product }}](../installation/python-installation-test-catboost.md).
 

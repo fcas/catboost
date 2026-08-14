@@ -15,6 +15,7 @@ fit(X,
     text_features=None,
     embedding_features=None,
     pairs=None,
+    graph=None,
     sample_weight=None,
     group_id=None,
     group_weight=None,
@@ -64,7 +65,7 @@ If a nontrivial value of the `cat_features` parameter is specified in the constr
 
 {% endcut %}
 
-{% cut "{{ python-type--list }}, {{ python-type--numpy-ndarray }}, {{ python-type--pandasDataFrame }}, {{ python-type--pandasSeries }}" %}
+{% cut "{{ python-type--list }}, {{ python-type--numpy-ndarray }}, {{ python-type--pandasDataFrame }}, {{ python-type--pandasSeries }}, polars.DataFrame" %}
 
 The input training dataset in the form of a two-dimensional feature matrix.
 
@@ -107,7 +108,7 @@ Do not use this parameter if the input training dataset (specified in the `X` pa
 
 A one-dimensional array of categorical columns indices.
 
-Use it only if the `X` parameter is a two-dimensional feature matrix (has one of the following types: {{ python-type--list }}, {{ python-type__np_ndarray }}, {{ python-type--pandasDataFrame }}, {{ python-type--pandasSeries }}).
+Use it only if the `X` parameter is a two-dimensional feature matrix (has one of the following types: {{ python-type--list }}, {{ python-type__np_ndarray }}, {{ python-type--pandasDataFrame }}, {{ python-type--pandasSeries }}), polars.DataFrame.
 
 {% note info %}
 
@@ -197,6 +198,7 @@ The pairs description in the form of a two-dimensional matrix of shape `N` by 2
 - {{ python-type--list }}
 - {{ python-type--numpy-ndarray }}
 - {{ python-type--pandasDataFrame }}
+- [polars.DataFrame](https://docs.pola.rs/api/python/stable/reference/dataframe/index.html)
 
 
 **Default value**
@@ -208,6 +210,34 @@ The pairs description in the form of a two-dimensional matrix of shape `N` by 2
 
 {% include [loss-functions-pairwisemetrics_require_pairs_data](../_includes/work_src/reusage-common-phrases/pairwisemetrics_require_pairs_data.md) %}
 
+
+**Supported processing units**
+
+{% include [reusage-python-cpu-and-gpu](../_includes/work_src/reusage-python/cpu-and-gpu.md) %}
+
+### graph
+
+#### Description
+
+The graph description in the form of a two-dimensional matrix of shape `N` by 2:
+
+- `N` is the number of edges.
+- The first element of the edge is the zero-based index of start vertex (object) from the input dataset.
+- The second element of the edge is the zero-based index of end vertex (object) from the input dataset.
+
+{% include [reusage-graph__where_is_used](../_includes/work_src/reusage/graph__where_is_used.md) %}
+
+**Possible types**
+
+- {{ python-type--list }}
+- {{ python-type--numpy-ndarray }}
+- {{ python-type--pandasDataFrame }}
+- [polars.DataFrame](https://docs.pola.rs/api/python/stable/reference/dataframe/index.html)
+
+
+**Default value**
+
+None
 
 **Supported processing units**
 
@@ -231,6 +261,7 @@ The pairs description in the form of a two-dimensional matrix of shape `N` by 2
 - {{ python-type--numpy-ndarray }}
 - {{ python-type--pandasDataFrame }}
 - {{ python-type--pandasSeries }}
+- [polars.Series](https://docs.pola.rs/api/python/stable/reference/series/index.html)
 
 **Default value**
 
@@ -255,6 +286,7 @@ Group identifiers for all input objects. Supported identifier types are:
 
 - {{ python-type--list }}
 - {{ python-type--numpy-ndarray }}
+- [polars.Series](https://docs.pola.rs/api/python/stable/reference/series/index.html)
 
 **Default value**
 
@@ -283,6 +315,7 @@ Used for calculating the final values of trees. By default, it is set to 1 for a
 
 - {{ python-type--list }}
 - {{ python-type--numpy-ndarray }}
+- [polars.Series](https://docs.pola.rs/api/python/stable/reference/series/index.html)
 
 **Default value**
 
@@ -306,6 +339,7 @@ Subgroup identifiers for all input objects. Supported identifier types are:
 
 - {{ python-type--list }}
 - {{ python-type--numpy-ndarray }}
+- [polars.Series](https://docs.pola.rs/api/python/stable/reference/series/index.html)
 
 **Default value**
 
@@ -336,6 +370,7 @@ By default, it is set to 1 for all pairs.
 
 - {{ python-type--list }}
 - {{ python-type--numpy-ndarray }}
+- [polars.Series](https://docs.pola.rs/api/python/stable/reference/series/index.html)
 
 **Default value**
 
@@ -365,6 +400,8 @@ Do not use this parameter if the input training dataset (specified in the `X` p
 
 - {{ python-type--list }}
 - {{ python-type--numpy-ndarray }}
+- [polars.Series](https://docs.pola.rs/api/python/stable/reference/series/index.html)
+- [polars.DataFrame](https://docs.pola.rs/api/python/stable/reference/dataframe/index.html)
 
 **Default value**
 
@@ -394,7 +431,7 @@ This option requires a validation dataset to be provided.
 
 **Default value**
 
-True if a validation set is input (the `eval_set` parameter is defined) and at least one of the label values of objects in this set differs from the others. False otherwise.
+True if validation sets are specified (the `eval_set` parameter is defined) and at least one of the label values of objects in the last validation dataset differs from the others. False otherwise.
 
 **Supported processing units**
 
@@ -407,7 +444,7 @@ True if a validation set is input (the `eval_set` parameter is defined) and at l
 
 The validation dataset or datasets used for the following processes:
 - [overfitting detector](../concepts/overfitting-detector.md)
-- best iteration selection
+- the best iteration selection
 - monitoring metrics' changes
 
 **Possible types**
@@ -430,7 +467,7 @@ None
 
 {% note info %}
 
-Only a single validation dataset can be input if the training is performed on GPU
+GPU training does not support multiple validation datasets for now
 
 {% endnote %}
 

@@ -13,6 +13,7 @@ C BuildDataProvider
 
 C LoadFullModelFromFile
 C LoadFullModelFromBuffer
+C LoadFullModelZeroCopy
 
 C EnableGPUEvaluation
 C GetSupportedEvaluatorTypes
@@ -34,6 +35,7 @@ C CalcModelPredictionFlatTransposedStaged
 C CalcModelPredictionWithHashedCatFeatures
 C CalcModelPredictionWithHashedCatFeaturesAndTextFeatures
 C CalcModelPredictionWithHashedCatFeaturesAndTextAndEmbeddingFeatures
+C PredictSpecificClassFlat
 C PredictSpecificClass
 C PredictSpecificClassText
 C PredictSpecificClassTextAndEmbeddings

@@ -45,10 +45,16 @@ namespace NStatistics {
         }
 
         template <typename T>
-        T Normalize(T mean, T stdDeviation, T x) {
+        T Normalize(T mean, T stdDeviation, T x, bool continuity) {
             static_assert(std::is_floating_point<T>::value, "expect std::is_floating_point<T>::value");
 
-            return (x - mean) / stdDeviation;
+            auto numerator = x - mean;
+            if (continuity) {
+                // Continuity correction +0.5 because X is already passed with negative deviation
+                numerator += 0.5;
+            }
+
+            return numerator / stdDeviation;
         }
 
         template <typename T>
@@ -59,11 +65,110 @@ namespace NStatistics {
         }
 
         template <typename T>
-        double Phi(T mean, T stdDeviation, T x) {
+        double Phi(T mean, T stdDeviation, T x, bool continuity) {
             static_assert(std::is_floating_point<T>::value, "expect std::is_floating_point<ValueType>::value");
 
-            return Phi(Normalize(mean, stdDeviation, x));
+            return Phi(Normalize(mean, stdDeviation, x, continuity));
         }
+
+        // Student's t-distribution CDF implementation BEGIN
+
+        //! Continued fraction calculation for incomplete beta-function ratio.
+        template <typename ValueType>
+        double BetaCF(ValueType a, ValueType b, ValueType x) {
+            static const int MAXIT = 200;
+            static const ValueType EPS = std::numeric_limits<double>::epsilon();
+            static const ValueType FPMIN = std::numeric_limits<double>::min() / EPS;
+
+            /*
+             *  See https://dlmf.nist.gov/8.17#v
+             *  and https://en.wikipedia.org/wiki/Lentz%27s_algorithm#Algorithm.
+             *  Fraction value on each iteration F_i = C_i * D_i * F_(i - 1).
+             *  C_i = 1 + numerator_i / C_(i - 1)
+             *  D_i = 1 / (1 + numerator_i * D_(i - 1))
+             *  Stopping criterion: C_i * D_i ~ 1
+             */
+            ValueType c = 1.0;
+            ValueType d = 1.0 - (a + b) * x / (a + 1);
+
+            if (fabs(d) < FPMIN) {
+                d = FPMIN;
+            }
+
+            d = 1.0 / d;
+            ValueType h = d;
+
+            for (int m = 1; m <= MAXIT; ++m) {
+                ValueType numerator = m * (b - m) * x / ((a - 1 + m * 2) * (a + m * 2));
+                d = 1.0 + numerator * d;
+                c = 1.0 + numerator / c;
+
+                if (fabs(d) < FPMIN) {
+                    d = FPMIN;
+                }
+                if (fabs(c) < FPMIN) {
+                    c = FPMIN;
+                }
+
+                d = 1.0 / d;
+                h *= d * c;
+                numerator = -(a + m) * (a + b + m) * x / ((a + m * 2) * (a + 1 + m * 2));
+                d = 1.0 + numerator * d;
+                c = 1.0 + numerator / c;
+
+                if (fabs(d) < FPMIN) {
+                    d = FPMIN;
+                }
+                if (fabs(c) < FPMIN) {
+                    c = FPMIN;
+                }
+
+                d = 1.0 / d;
+                h *= d * c;
+
+                if (fabs(d * c - 1.0) < EPS) {
+                    break;
+                }
+            }
+            return h;
+        }
+
+        //! Incomplete beta-function ratio.
+        template<typename ValueType>
+        double IncompleteBeta(ValueType a, ValueType b, ValueType x) {
+            if (x == 0.0 || x == 1.0) {
+                return x;
+            }
+
+            double logBeta = lgamma(a) + lgamma(b) - lgamma(a + b);
+            double front = exp(log(x) * a + log(1.0 - x) * b - logBeta);
+
+            if (x < (a + 1.0) / (a + b + 2.0)) {
+                return front * BetaCF(a, b, x) / a;
+            } else {
+                return 1.0 - front * BetaCF(b, a, 1.0 - x) / b;
+            }
+        }
+
+        //! t-distribution CDF.
+        template<typename ValueType>
+        double TCDF(ValueType t, ValueType nu) {
+            if (nu <= 0.0) {
+                return std::nan("");
+            }
+
+            // From Johnson & Kotz & Balakrishnan 28.2 (p.364)
+            double x = nu / (nu + t * t);
+            double ib = IncompleteBeta(nu / 2.0, 0.5, x);
+
+            if (t > 0) {
+                return 1.0 - 0.5 * ib;
+            } else {
+                return 0.5 * ib;
+            }
+        }
+
+        // Student's t-distribution CDF implementation END
 
         // Probit(...) implementation details BEGIN
 
@@ -84,7 +189,7 @@ namespace NStatistics {
                 std::is_floating_point<ValueType>::value,
                 "expect std::is_floating_point<ValueType>::value");
 
-            return DerivativeOfPhi(Normalize(mean, stdDeviation, x));
+            return DerivativeOfPhi(Normalize(mean, stdDeviation, x, false));
         }
 
         // Probit(...) implementation details END
@@ -197,7 +302,7 @@ namespace NStatistics {
             denominator = sqrt(denominator / 24.0);
 
             const ValueType x = (w - size * (size + 1) / 4.0) / denominator;
-            double res = Phi(static_cast<ValueType>(0.0), static_cast<ValueType>(1.0), std::abs(x));
+            double res = Phi(static_cast<ValueType>(0.0), static_cast<ValueType>(1.0), std::abs(x), false);
 
             return TStatTestResult((1 - res) * 2, (x > 0) - (x < 0));
         }

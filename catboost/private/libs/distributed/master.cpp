@@ -16,6 +16,7 @@
 #include <catboost/private/libs/algo_helpers/error_functions.h>
 #include <catboost/private/libs/options/json_helper.h>
 
+#include <library/cpp/containers/2d_array/2d_array.h>
 #include <library/cpp/par/par_settings.h>
 
 #include <util/generic/algorithm.h>
@@ -576,7 +577,7 @@ static void UpdateLeavesExact(
     const int approxDimension = ctx->LearnProgress->ApproxDimension;
     const auto lossFunction = ctx->Params.LossFunctionDescription;
 
-    Y_ASSERT(EqualToOneOf(lossFunction->GetLossFunction(), ELossFunction::Quantile, ELossFunction::MAE, ELossFunction::MAPE));
+    Y_ASSERT(EqualToOneOf(lossFunction->GetLossFunction(), ELossFunction::Quantile, ELossFunction::MAE, ELossFunction::MAPE, ELossFunction::RMSPE));
     averageLeafValues->resize(approxDimension, TVector<double>(leafCount));
     double alpha = 0.5;
     double delta = 0.0;

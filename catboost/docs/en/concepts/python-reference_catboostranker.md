@@ -115,7 +115,9 @@ class CatBoostRanker(iterations=None,
 
 ## {{ dl--purpose }} {#purpose}
 
-Implementation of the scikit-learn API for CatBoost ranking.
+Implementation of [the scikit-learn estimator API](https://scikit-learn.org/stable/developers/develop.html) for CatBoost ranking.
+
+Supports model training, inference and auxiliary calculations like feature importance.
 
 ## {{ dl--parameters }} {#parameters}
 
@@ -126,7 +128,7 @@ Implementation of the scikit-learn API for CatBoost ranking.
 {% include [sections-with-methods-desc-see-training-params](../_includes/work_src/reusage/see-training-params.md) %}
 
 
-{% include [precedence-python--regressor--precedence-note](../_includes/work_src/reusage/python--regressor--precedence-note.md) %}
+{% include [precedence-python--ranker--precedence-note](../_includes/work_src/reusage/python--ranker--precedence-note.md) %}
 
 ## {{ dl--attributes }} {#attributes}
 
@@ -209,6 +211,18 @@ Apply the model to the given dataset.
 ### [get_borders](python-reference_catboostranker_get_borders.md)
 
 {% include [get_borders-get_borders__desc__div](../_includes/work_src/reusage-python/get_borders__desc__div.md) %}
+
+### [get_cat_feature_indices](python-reference_catboostranker_get_cat_feature_indices.md)
+
+Return the indices of categorical features used by the model.
+
+### [get_embedding_feature_indices](python-reference_catboostranker_get_embedding_feature_indices.md)
+
+Return the indices of embedding features used by the model.
+
+### [get_text_feature_indices](python-reference_catboostranker_get_text_feature_indices.md)
+
+Return the indices of text features used by the model.
 
 ### [get_evals_result](python-reference_catboostranker_get_evals_result.md)
 
@@ -301,6 +315,3 @@ Select the best features from the dataset using the [Recursive Feature Eliminati
 ### [staged_predict](python-reference_catboostranker_staged_predict.md)
 
 {% include [sections-with-methods-desc-staged_predict--purpose](../_includes/work_src/reusage/staged_predict--purpose.md) %}
-
-
-
